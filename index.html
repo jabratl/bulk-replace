@@ -50,12 +50,21 @@
   <input type="text" id="root" placeholder="My Work folder ID (ba folder link)">
   <button onclick="saveSettings()">Settings save korun</button>
   <p class="hint">Eta ei phone er browser e save thake. Khali rekhe save korle code er default ID use hobe.</p>
+  <div class="row">
+    <button onclick="switchAccount()">Onno Google account diye login</button>
+    <button onclick="logout()">Logout</button>
+  </div>
 </details>
 
 <button onclick="loadNovels()">Novel list load korun</button>
 <div id="list"></div>
 <div id="selbox">Kono folder select kora nai.</div>
 <p class="hint">▸ chap diye subfolder khulun. Je folder tick korben shudhu sei folder (ar tar bhitorer subfolder) e kaj hobe.</p>
+<div class="row">
+  <button onclick="folderSel('all')">Folder: shob</button>
+  <button onclick="folderSel('none')">Folder: bad</button>
+  <button onclick="folderSel('invert')">Folder: ulto</button>
+</div>
 <input type="text" id="extra" placeholder="Extra folder ID/link (optional, comma diye)">
 
 <textarea id="pairs" placeholder="Ek line e ek pair:&#10;vul term => shothik term&#10;onno vul => onno shothik&#10;# ei rokom line ignore hobe"></textarea>
@@ -99,7 +108,23 @@
   <div class="row">
     <button onclick="selAll(true)">Shob select</button>
     <button onclick="selAll(false)">Shob bad</button>
+    <button onclick="selInvert()">Ulto</button>
   </div>
+  <details class="box">
+    <summary>Aro select tools</summary>
+    <select id="pairSel"></select>
+    <div class="row">
+      <button onclick="selPair('only')">Shudhu ei pair select</button>
+      <button onclick="selPair('off')">Ei pair bad</button>
+    </div>
+    <input type="text" id="lineQ" placeholder="Line e ei shobdo thakle (jemon: tar bhai)">
+    <button onclick="selLine('only')">Shudhu ei gula select (baki sob bad)</button>
+    <div class="row">
+      <button onclick="selLine('on')">Ei gula-o select</button>
+      <button onclick="selLine('off')">Ei gula bad</button>
+    </div>
+    <p class="hint">"Ulto" mane select kora gula bad, bad gula select.</p>
+  </details>
   <button onclick="applySelected()"><b>Shudhu tick kora gula replace korun</b></button>
 </div>
 <button id="exp" onclick="exportReport()" hidden>Report save korun (.txt)</button>
@@ -141,12 +166,12 @@ function saveSettings() {
 }
 
 /* ---------- login / api ---------- */
-function login() {
+function login(promptVal) {
   return new Promise((res, rej) => {
     google.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID, scope: SCOPE,
       callback: t => t.access_token ? (token = t.access_token, res()) : rej(new Error('Login fail'))
-    }).requestAccessToken();
+    }).requestAccessToken(promptVal ? {prompt: promptVal} : {});
   });
 }
 
@@ -287,6 +312,25 @@ function delGloss() {
   refreshGloss();
 }
 refreshGloss();
+
+/* ---------- remember options ---------- */
+const OPT_IDS = ['c', 'rec', 'nfilter', 'rfrom', 'rto', 'extra'];
+function saveOpts() {
+  const o = {};
+  OPT_IDS.forEach(i => { const e = $(i); o[i] = e.type === 'checkbox' ? e.checked : e.value; });
+  store.set('opts', JSON.stringify(o));
+}
+(function () {
+  try {
+    const o = JSON.parse(store.get('opts', '{}')) || {};
+    OPT_IDS.forEach(i => {
+      if (o[i] === undefined) return;
+      const e = $(i);
+      if (e.type === 'checkbox') e.checked = o[i]; else e.value = o[i];
+    });
+  } catch (e) {}
+  OPT_IDS.forEach(i => { $(i).addEventListener('input', saveOpts); $(i).addEventListener('change', saveOpts); });
+})();
 
 /* ---------- parsing / scanning ---------- */
 function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
@@ -459,6 +503,7 @@ function showResults(r, mode) {
         for (const m of f.matches) if (m.ok) { m.sel = fc.checked; if (m.cb) m.cb.checked = fc.checked; }
         updateSelInfo();
       };
+      f.fcb = fc;
       s.append(fc);
     }
     const a = el('a', `${f.name} (${f.matches.length})`);
@@ -477,13 +522,66 @@ function updateSelInfo() {
   let sel = 0, tot = 0;
   for (const f of lastScan.results) for (const m of f.matches) { if (m.ok) tot++; if (m.sel && m.ok) sel++; }
   $('selinfo').textContent = `Select kora: ${sel} / ${tot} ta match (tick uthale oi match replace hobe na)`;
+  syncFileBoxes();
 }
 
-function selAll(v) {
+function eachMatch(fn) {
   if (!lastScan) return;
-  for (const f of lastScan.results) for (const m of f.matches) if (m.ok) { m.sel = v; if (m.cb) m.cb.checked = v; }
-  document.querySelectorAll('details.file > summary > input').forEach(c => c.checked = v);
+  for (const f of lastScan.results) for (const m of f.matches) if (m.ok) fn(m, f);
+}
+function setSel(m, v) { m.sel = v; if (m.cb) m.cb.checked = v; }
+function syncFileBoxes() {
+  if (!lastScan) return;
+  for (const f of lastScan.results) if (f.fcb) f.fcb.checked = f.matches.every(m => !m.ok || m.sel);
+}
+function selAll(v) { eachMatch(m => setSel(m, v)); updateSelInfo(); }
+function selInvert() { eachMatch(m => setSel(m, !m.sel)); updateSelInfo(); }
+function selPair(mode) {
+  const k = parseInt($('pairSel').value, 10);
+  if (isNaN(k)) return setStatus('Age Preview chalan.');
+  eachMatch(m => { if (mode === 'only') setSel(m, m.k === k); else if (m.k === k) setSel(m, false); });
   updateSelInfo();
+}
+function selLine(mode) {
+  const q = $('lineQ').value.trim().toLowerCase();
+  if (!q) return setStatus('Line e kon shobdo thakle seta likhun.');
+  let hit = 0;
+  eachMatch(m => {
+    const has = m.text.toLowerCase().includes(q);
+    if (has) hit++;
+    if (mode === 'only') setSel(m, has);
+    else if (has) setSel(m, mode === 'on');
+  });
+  updateSelInfo();
+  setStatus(`"${q}" ${hit} ta match er line e paoa gelo.`);
+}
+function fillPairSel(r) {
+  const sel = $('pairSel');
+  sel.innerHTML = '';
+  r.pairs.forEach((p, k) => {
+    const o = document.createElement('option');
+    o.value = k; o.textContent = `Pair ${k + 1}: ${p.find} => ${p.repl}`;
+    sel.append(o);
+  });
+}
+function folderSel(mode) {
+  document.querySelectorAll('.nv').forEach(cb => { cb.checked = mode === 'all' ? true : mode === 'none' ? false : !cb.checked; });
+  updateFolderSel();
+}
+function switchAccount() {
+  token = null;
+  login('select_account').then(() => {
+    $('list').textContent = '';
+    updateFolderSel();
+    setStatus('Notun account e login hoyeche. Novel list abar load korun.');
+  }).catch(e => setStatus('Error: ' + e.message));
+}
+function logout() {
+  try { if (token) google.accounts.oauth2.revoke(token, () => {}); } catch (e) {}
+  token = null;
+  $('list').textContent = '';
+  updateFolderSel();
+  setStatus('Logout hoyeche.');
 }
 
 function showSummary(head, rows) {
@@ -553,6 +651,7 @@ async function preview() {
     const r = await scan();
     if (!r) return;
     lastScan = r;
+    fillPairSel(r);
     showSummary(
       `Preview: ${r.docs} ta doc check, ${r.results.length} ta file e ${r.totalMatches} ta match. Ekhono kichu change hoyni.` +
       (r.rangeInfo ? '\n' + r.rangeInfo : ''),
@@ -639,12 +738,13 @@ async function replaceAll() {
       return;
     }
     const short = r.pairs.some(p => p.find.length < 3);
-    const msg = `Folder: ${r.folderNames.join(' | ')}\n\n${r.results.length} ta file e ${r.totalMatches} ta match, ${r.pairs.length} ta pair.` +
+    const msg = `Folder: ${r.folderNames.join(' | ')}\n\n${r.rangeInfo ? r.rangeInfo + '\n\n' : ''}${r.results.length} ta file e ${r.totalMatches} ta match, ${r.pairs.length} ta pair.` +
       (short ? '\n\nShotorko: kichu term onek chhoto, onno jaygay-o change hote pare.' : '') +
       (r.pairs.length > 1 ? '\n\nPair gulo upor theke nich porjonto ek ek kore replace hoy.' : '') +
       '\n\nSHOB match replace korbo? (Line dekhe bachte chaile Preview ar review use korun.)';
     if (!confirm(msg)) {
       lastScan = r;
+      fillPairSel(r);
       showSummary(`Batil. ${r.results.length} ta file e ${r.totalMatches} ta match chilo, kichu change hoyni. Chaile niche review kore select kore replace korte paren.`,
         r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl} : ${r.totals[k]} match`));
       showResults(r, 'review');
