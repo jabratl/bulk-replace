@@ -1,49 +1,116 @@
 <!DOCTYPE html>
-<html>
+<html lang="bn">
 <head>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <script src="https://accounts.google.com/gsi/client"></script>
 <style>
-  body{font-family:sans-serif;padding:16px;max-width:700px;margin:auto}
-  input[type=text],button{width:100%;padding:12px;margin-bottom:10px;font-size:16px;box-sizing:border-box}
+  :root{--bg:#fff;--fg:#111;--mut:#555;--card:#f4f4f4;--bd:#ccc;--btn:#ececec}
+  @media (prefers-color-scheme:dark){:root{--bg:#121212;--fg:#eee;--mut:#aaa;--card:#1e1e1e;--bd:#444;--btn:#2a2a2a}}
+  body{background:var(--bg);color:var(--fg);font-family:sans-serif;padding:16px;max-width:720px;margin:auto}
+  input[type=text],textarea,select,button{width:100%;padding:12px;margin-bottom:10px;font-size:16px;box-sizing:border-box;background:var(--btn);color:var(--fg);border:1px solid var(--bd);border-radius:8px}
+  textarea{min-height:120px;font-family:inherit}
+  details{border:1px solid var(--bd);border-radius:8px;padding:8px 12px;margin-bottom:12px}
+  summary{padding:6px 0;cursor:pointer}
+  .row{display:flex;gap:8px}
+  .row>*{flex:1}
   #list label{display:block;padding:8px 0}
   #list input{width:auto;margin-right:8px}
-  .row{display:flex;gap:8px}
-  .row button{flex:1}
-  #sum{font-weight:bold;margin:10px 0}
-  #log{color:#555;font-size:14px;white-space:pre-wrap}
-  .file{margin-top:14px;padding-top:8px;border-top:1px solid #ccc}
-  .file a{font-weight:bold;word-break:break-word}
-  .ln{margin:6px 0;padding:6px;background:#f4f4f4;border-radius:6px;word-break:break-word;font-size:14px;color:#000}
-  mark{background:#ffe066}
-  del{background:#ffc9c9}
-  ins{background:#b2f2bb;text-decoration:none}
+  .opt{display:block;padding:6px 0}
+  .opt input{width:auto;margin-right:8px}
+  .hint{color:var(--mut);font-size:13px;margin:0 0 10px}
+  progress{width:100%;height:10px}
+  #log{color:var(--mut);font-size:14px;white-space:pre-wrap;min-height:18px}
+  #sum{margin:10px 0}
+  #sum .head{font-weight:bold;margin-bottom:6px}
+  #sum .pr{font-size:14px;padding:2px 0;word-break:break-word}
+  .file{margin-top:14px;padding-top:8px;border-top:1px solid var(--bd)}
+  .file a{font-weight:bold;word-break:break-word;color:inherit}
+  .ln{margin:6px 0;padding:6px;background:var(--card);border-radius:6px;word-break:break-word;font-size:14px}
+  .tag{font-size:12px;color:var(--mut);margin-right:4px}
+  mark{background:#ffe066;color:#000}
+  del{background:#ffc9c9;color:#000}
+  ins{background:#b2f2bb;color:#000;text-decoration:none}
 </style>
 </head>
 <body>
 <h3>Bulk Replace</h3>
+
+<details>
+  <summary>Settings (Client ID / My Work folder ID)</summary>
+  <input type="text" id="cid" placeholder="Google OAuth Client ID">
+  <input type="text" id="root" placeholder="My Work folder ID (ba folder link)">
+  <button onclick="saveSettings()">Settings save korun</button>
+  <p class="hint">Eta ei phone er browser e save thake. Khali rekhe save korle code er default ID use hobe.</p>
+</details>
+
 <button onclick="loadNovels()">Novel list load korun</button>
 <div id="list"></div>
-<input type="text" id="f" placeholder="Vul term">
-<input type="text" id="r" placeholder="Shothik term">
-<label><input type="checkbox" id="c" checked style="width:auto"> Case match</label><br><br>
+<input type="text" id="extra" placeholder="Extra folder ID/link (optional, comma diye)">
+
+<textarea id="pairs" placeholder="Ek line e ek pair:&#10;vul term => shothik term&#10;onno vul => onno shothik&#10;# ei rokom line ignore hobe"></textarea>
+<p class="hint">Format: <b>vul =&gt; shothik</b>. Shothik ongsho khali rakhle oi shobdo muche jabe.</p>
+
+<details>
+  <summary>Glossary (novel-wise term list save)</summary>
+  <input type="text" id="gname" placeholder="Glossary nam (jemon novel er nam)">
+  <div class="row">
+    <button onclick="saveGloss()">Save</button>
+    <button onclick="loadGloss()">Load</button>
+    <button onclick="delGloss()">Delete</button>
+  </div>
+  <select id="gsel"></select>
+</details>
+
+<label class="opt"><input type="checkbox" id="c" checked> Case match</label>
+
 <div class="row">
   <button onclick="preview()">Preview (change hobe na)</button>
   <button onclick="replaceAll()">Replace</button>
 </div>
 <button onclick="stopFlag=true">Stop</button>
+<progress id="pg" value="0" max="1" hidden></progress>
 <div id="log"></div>
+<button id="exp" onclick="exportReport()" hidden>Report save korun (.txt)</button>
 <div id="sum"></div>
 <div id="res"></div>
+
 <script>
-const CLIENT_ID = '374294915623-ocgsd7n31s1h4vgm5pshbosuvl1g5u6g.apps.googleusercontent.com';
-const ROOT_ID = '1Y7cF60rpEzIgwH-vxDZ35Ltgsmt03has';
+const DEFAULTS = {
+  cid: '374294915623-ocgsd7n31s1h4vgm5pshbosuvl1g5u6g.apps.googleusercontent.com',
+  root: '1Y7cF60rpEzIgwH-vxDZ35Ltgsmt03has'
+};
 const SCOPE = 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/documents';
-let token = null, stopFlag = false, busy = false;
 const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const setStatus = m => { $('log').textContent = m; };
 
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
+};
+const fid = s => { s = (s || '').trim(); const m = s.match(/folders\/([A-Za-z0-9_-]+)/); return m ? m[1] : s; };
+
+let CLIENT_ID = store.get('cid', DEFAULTS.cid) || DEFAULTS.cid;
+let ROOT_ID = store.get('root', DEFAULTS.root) || DEFAULTS.root;
+let token = null, stopFlag = false, busy = false, lastReport = '', wl = null;
+
+$('cid').value = CLIENT_ID;
+$('root').value = ROOT_ID;
+$('pairs').value = store.get('draft', '');
+$('pairs').addEventListener('input', () => store.set('draft', $('pairs').value));
+
+function saveSettings() {
+  const c = $('cid').value.trim() || DEFAULTS.cid;
+  const r = fid($('root').value) || DEFAULTS.root;
+  if (c !== CLIENT_ID) token = null;
+  CLIENT_ID = c; ROOT_ID = r;
+  $('cid').value = c; $('root').value = r;
+  const ok = store.set('cid', c) && store.set('root', r);
+  setStatus(ok ? 'Settings save hoyeche. Novel list abar load korun.' : 'Save hoyni (browser storage block), tobe ei session e kaj korbe.');
+}
+
+/* ---------- login / api ---------- */
 function login() {
   return new Promise((res, rej) => {
     google.accounts.oauth2.initTokenClient({
@@ -53,16 +120,21 @@ function login() {
   });
 }
 
-async function api(url, opt = {}) {
+async function api(url, opt = {}, retry = true) {
   for (let i = 0; i < 5; i++) {
     const r = await fetch(url, {...opt, headers: {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json'}});
     if (r.status === 429) { setStatus('Limit chhuyeche, 30s opekkha...'); await sleep(30000); continue; }
+    if (r.status === 401 && retry) { token = null; await login(); return api(url, opt, false); }
     if (!r.ok) throw new Error(await r.text());
     return r.json();
   }
   throw new Error('Onek bar try kore o hoyni');
 }
 
+async function keepAwake() { try { if ('wakeLock' in navigator) wl = await navigator.wakeLock.request('screen'); } catch (e) {} }
+function releaseAwake() { try { if (wl) wl.release(); } catch (e) {} wl = null; }
+
+/* ---------- novel list ---------- */
 async function loadNovels() {
   const list = $('list');
   list.textContent = 'Load hocche...';
@@ -74,7 +146,7 @@ async function loadNovels() {
     for (const f of d.files) {
       const l = document.createElement('label');
       const cb = document.createElement('input');
-      cb.type = 'checkbox'; cb.className = 'nv'; cb.value = f.id;
+      cb.type = 'checkbox'; cb.className = 'nv'; cb.value = f.id; cb.dataset.name = f.name;
       l.append(cb, f.name);
       list.appendChild(l);
     }
@@ -82,9 +154,7 @@ async function loadNovels() {
   } catch (e) { list.textContent = 'Error: ' + e.message; }
 }
 
-function toggleAll(el) {
-  document.querySelectorAll('.nv').forEach(cb => cb.checked = el.checked);
-}
+function toggleAll(el) { document.querySelectorAll('.nv').forEach(cb => cb.checked = el.checked); }
 
 async function listDocs(folder) {
   let docs = [], page = '';
@@ -100,7 +170,59 @@ async function listDocs(folder) {
   return docs;
 }
 
+/* ---------- glossary ---------- */
+function gloss() { try { return JSON.parse(store.get('gloss', '{}')) || {}; } catch (e) { return {}; } }
+function refreshGloss() {
+  const sel = $('gsel');
+  sel.innerHTML = '<option value="">-- saved glossary --</option>';
+  for (const k of Object.keys(gloss()).sort()) {
+    const o = document.createElement('option');
+    o.value = k; o.textContent = k; sel.append(o);
+  }
+}
+function saveGloss() {
+  const n = $('gname').value.trim();
+  if (!n) return setStatus('Glossary er nam likhun.');
+  const g = gloss(); g[n] = $('pairs').value;
+  if (!store.set('gloss', JSON.stringify(g))) return setStatus('Save hoyni (browser storage block).');
+  refreshGloss(); $('gsel').value = n;
+  setStatus(`"${n}" glossary save hoyeche.`);
+}
+function loadGloss() {
+  const k = $('gsel').value;
+  if (!k) return setStatus('Age list theke ekta glossary select korun.');
+  $('pairs').value = gloss()[k] || ''; $('gname').value = k;
+  store.set('draft', $('pairs').value);
+  setStatus(`"${k}" load hoyeche.`);
+}
+function delGloss() {
+  const k = $('gsel').value;
+  if (!k) return;
+  if (!confirm(`"${k}" glossary muche felbo?`)) return;
+  const g = gloss(); delete g[k];
+  store.set('gloss', JSON.stringify(g));
+  refreshGloss();
+}
+refreshGloss();
+
+/* ---------- parsing / scanning ---------- */
 function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+function parsePairs() {
+  const pairs = [], bad = [], seen = new Set();
+  for (const raw of $('pairs').value.split('\n')) {
+    const line = raw.replace(/\r/g, '');
+    const t = line.trim();
+    if (!t || t.startsWith('#')) continue;
+    const i = line.indexOf('=>');
+    if (i < 0) { bad.push(t); continue; }
+    const find = line.slice(0, i).trim(), repl = line.slice(i + 2).trim();
+    if (!find || seen.has(find)) continue;
+    seen.add(find);
+    pairs.push({find, repl});
+  }
+  return {pairs, bad};
+}
 
 function collectParas(content, out) {
   for (const el of content || []) {
@@ -114,37 +236,52 @@ function collectParas(content, out) {
   }
 }
 
+function progress(i, n) {
+  const pg = $('pg'); pg.hidden = false; pg.max = n || 1; pg.value = i;
+}
+
 async function scan() {
+  const {pairs, bad} = parsePairs();
+  if (bad.length) { setStatus('Ei line e "=>" nai: ' + bad[0]); return null; }
+  if (!pairs.length) { setStatus('Kompokkhe ekta "vul => shothik" line likhun.'); return null; }
   const folders = [...document.querySelectorAll('.nv:checked')].map(cb => cb.value);
-  const find = $('f').value;
-  if (!folders.length) { setStatus('Age novel list load kore kompokkhe ekta novel tick korun.'); return null; }
-  if (!find) { setStatus('Vul term likhun.'); return null; }
+  for (const s of $('extra').value.split(',')) { const f = fid(s); if (f) folders.push(f); }
+  if (!folders.length) { setStatus('Novel list load kore kompokkhe ekta novel tick korun (ba extra folder din).'); return null; }
   if (!token) await login();
   setStatus('File khujchi...');
   const map = new Map();
   for (const fl of folders) for (const d of await listDocs(fl)) map.set(d.id, d);
   const docs = [...map.values()];
-  const re = new RegExp(escapeRegExp(find), $('c').checked ? 'g' : 'gi');
+  const matchCase = $('c').checked;
+  const res = pairs.map(p => new RegExp(escapeRegExp(p.find), matchCase ? 'g' : 'gi'));
   const results = [];
+  const totals = pairs.map(() => 0), fileCounts = pairs.map(() => 0);
   let totalMatches = 0;
   for (let i = 0; i < docs.length; i++) {
     if (stopFlag) { setStatus('Thamano hoyeche.'); return null; }
-    setStatus(`Scan: ${i + 1}/${docs.length}`);
+    setStatus(`Scan: ${i + 1}/${docs.length}`); progress(i + 1, docs.length);
     const d = await api(`https://docs.googleapis.com/v1/documents/${docs[i].id}?fields=body`);
     const paras = [];
     collectParas(d.body && d.body.content, paras);
-    const lines = [];
-    let n = 0;
+    const counts = pairs.map(() => 0), lines = [];
     for (const p of paras) {
-      const m = p.match(re);
-      if (m) { n += m.length; lines.push(p); }
+      for (let k = 0; k < pairs.length; k++) {
+        const m = p.match(res[k]);
+        if (m) { counts[k] += m.length; lines.push({k, text: p}); }
+      }
     }
-    if (n) { results.push({id: docs[i].id, name: docs[i].name, n, lines}); totalMatches += n; }
+    const n = counts.reduce((a, b) => a + b, 0);
+    if (n) {
+      results.push({id: docs[i].id, name: docs[i].name, n, counts, lines});
+      totalMatches += n;
+      counts.forEach((c, k) => { totals[k] += c; if (c) fileCounts[k]++; });
+    }
     await sleep(400);
   }
-  return {docs: docs.length, results, totalMatches, find, repl: $('r').value, matchCase: $('c').checked};
+  return {docs: docs.length, results, totalMatches, pairs, totals, fileCounts, matchCase};
 }
 
+/* ---------- rendering ---------- */
 function hl(t, re, tag, rep) {
   const frag = document.createDocumentFragment();
   const r = new RegExp(re.source, re.flags);
@@ -160,7 +297,7 @@ function hl(t, re, tag, rep) {
   return frag;
 }
 
-function buildLine(text, re, repl, mode) {
+function buildLine(text, re, repl, mode, tagText) {
   let t = text, pre = '', post = '';
   if (text.length > 200) {
     const first = Math.max(0, text.search(re));
@@ -171,11 +308,13 @@ function buildLine(text, re, repl, mode) {
   }
   const wrap = document.createElement('div');
   wrap.className = 'ln';
+  const tag = document.createElement('span');
+  tag.className = 'tag'; tag.textContent = tagText;
   if (mode === 'preview') {
-    wrap.append(pre, hl(t, re, 'mark', null), post);
+    wrap.append(tag, pre, hl(t, re, 'mark', null), post);
   } else {
     const a = document.createElement('div');
-    a.append('Purano: ', pre, hl(t, re, 'del', null), post);
+    a.append(tag, 'Purano: ', pre, hl(t, re, 'del', null), post);
     const b = document.createElement('div');
     b.append('Notun: ', pre, hl(t, re, 'ins', repl), post);
     wrap.append(a, b);
@@ -184,78 +323,155 @@ function buildLine(text, re, repl, mode) {
 }
 
 function showResults(r, mode) {
-  const res = $('res');
-  res.textContent = '';
-  const re = new RegExp(escapeRegExp(r.find), r.matchCase ? 'g' : 'gi');
+  const box = $('res');
+  box.textContent = '';
+  const res = r.pairs.map(p => new RegExp(escapeRegExp(p.find), r.matchCase ? 'g' : 'gi'));
   for (const f of r.results) {
-    const box = document.createElement('div');
-    box.className = 'file';
+    const div = document.createElement('div');
+    div.className = 'file';
     const a = document.createElement('a');
     a.href = 'https://docs.google.com/document/d/' + f.id + '/edit';
-    a.target = '_blank';
+    a.target = '_blank'; a.rel = 'noopener';
     a.textContent = `${f.name} (${f.n} ta match)`;
-    box.append(a);
-    for (const ln of f.lines) box.append(buildLine(ln, re, r.repl, mode));
-    res.append(box);
+    div.append(a);
+    for (const ln of f.lines)
+      div.append(buildLine(ln.text, res[ln.k], r.pairs[ln.k].repl, mode, r.pairs.length > 1 ? `[${ln.k + 1}]` : ''));
+    box.append(div);
   }
 }
 
+function showSummary(head, rows) {
+  const s = $('sum');
+  s.textContent = '';
+  const h = document.createElement('div');
+  h.className = 'head'; h.textContent = head;
+  s.append(h);
+  for (const r of rows) {
+    const d = document.createElement('div');
+    d.className = 'pr'; d.textContent = r;
+    s.append(d);
+  }
+}
+
+function buildReport(r, mode, applied, appliedFiles, note) {
+  const L = [];
+  L.push('Bulk Replace report');
+  L.push('Shomoy: ' + new Date().toLocaleString());
+  L.push('Mode: ' + (mode === 'preview' ? 'Preview (kichu change hoyni)' : 'Replace'));
+  L.push('Case match: ' + (r.matchCase ? 'hae' : 'na'));
+  L.push(`Doc check: ${r.docs}, match thaka file: ${r.results.length}, scan e mot match: ${r.totalMatches}`);
+  if (note) L.push(note);
+  L.push('');
+  L.push('--- Pair');
+  r.pairs.forEach((p, k) => {
+    let s = `${k + 1}) ${p.find} => ${p.repl} : scan e ${r.totals[k]} match, ${r.fileCounts[k]} file`;
+    if (applied) s += `; replace holo ${applied[k]} bar, ${appliedFiles[k]} file e`;
+    L.push(s);
+  });
+  L.push('');
+  L.push('--- File ar line');
+  for (const f of r.results) {
+    L.push(`${f.name} (${f.n}) https://docs.google.com/document/d/${f.id}/edit`);
+    for (const ln of f.lines) L.push(`  [${ln.k + 1}] ${ln.text}`);
+  }
+  return L.join('\n');
+}
+
+function finishUI(report) {
+  lastReport = report;
+  $('exp').hidden = !report;
+  $('pg').hidden = true;
+  setStatus('');
+}
+
+function exportReport() {
+  if (!lastReport) return;
+  const b = new Blob([lastReport], {type: 'text/plain;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b);
+  a.download = 'replace-report-' + new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-') + '.txt';
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+function resetOut() {
+  $('sum').textContent = ''; $('res').textContent = '';
+  $('exp').hidden = true; lastReport = '';
+}
+
+/* ---------- actions ---------- */
 async function preview() {
   if (busy) return;
-  busy = true; stopFlag = false;
-  $('sum').textContent = ''; $('res').textContent = '';
+  busy = true; stopFlag = false; resetOut();
+  await keepAwake();
   try {
     const r = await scan();
     if (!r) return;
-    $('sum').textContent = `Preview: ${r.docs} ta doc check hoyeche, ${r.results.length} ta file e ${r.totalMatches} ta match. Kichu change hoyni.`;
+    showSummary(
+      `Preview: ${r.docs} ta doc check, ${r.results.length} ta file e ${r.totalMatches} ta match. Kichu change hoyni.`,
+      r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl} : ${r.totals[k]} match, ${r.fileCounts[k]} file`)
+    );
     showResults(r, 'preview');
-    setStatus('');
+    finishUI(buildReport(r, 'preview', null, null, ''));
   } catch (e) { setStatus('Error: ' + e.message); }
-  finally { busy = false; }
+  finally { busy = false; releaseAwake(); }
 }
 
 async function replaceAll() {
   if (busy) return;
-  busy = true; stopFlag = false;
-  $('sum').textContent = ''; $('res').textContent = '';
+  busy = true; stopFlag = false; resetOut();
+  await keepAwake();
   try {
     const r = await scan();
     if (!r) return;
     if (!r.results.length) {
-      $('sum').textContent = `${r.docs} ta doc check hoyeche, kono match paoa jayni.`;
-      setStatus('');
+      showSummary(`${r.docs} ta doc check hoyeche, kono match paoa jayni.`, []);
+      finishUI('');
       return;
     }
-    if (!confirm(`${r.results.length} ta file e ${r.totalMatches} ta match paoa geche.\n"${r.find}" -> "${r.repl}" replace korbo?`)) {
-      $('sum').textContent = `Batil. ${r.results.length} ta file e ${r.totalMatches} ta match chilo, kichu change hoyni.`;
+    const short = r.pairs.some(p => p.find.length < 3);
+    const msg = `${r.results.length} ta file e ${r.totalMatches} ta match, ${r.pairs.length} ta pair.` +
+      (short ? '\n\nShotorko: kichu term onek chhoto, onno jaygay-o change hote pare.' : '') +
+      (r.pairs.length > 1 ? '\n\nPair gulo upor theke nich porjonto ek ek kore replace hoy.' : '') +
+      '\n\nReplace korbo?';
+    if (!confirm(msg)) {
+      showSummary(`Batil. ${r.results.length} ta file e ${r.totalMatches} ta match chilo, kichu change hoyni.`,
+        r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl} : ${r.totals[k]} match`));
       showResults(r, 'preview');
-      setStatus('');
+      finishUI(buildReport(r, 'preview', null, null, 'Replace batil kora hoyechilo.'));
       return;
     }
-    let changed = 0, total = 0, done = 0;
+    const applied = r.pairs.map(() => 0), appliedFiles = r.pairs.map(() => 0);
+    let done = 0;
+    const requests = r.pairs.map(p => ({replaceAllText: {
+      containsText: {text: p.find, matchCase: r.matchCase},
+      replaceText: p.repl
+    }}));
     for (let i = 0; i < r.results.length; i++) {
       if (stopFlag) break;
-      setStatus(`Replace: ${i + 1}/${r.results.length}`);
+      setStatus(`Replace: ${i + 1}/${r.results.length}`); progress(i + 1, r.results.length);
       const d = await api(`https://docs.googleapis.com/v1/documents/${r.results[i].id}:batchUpdate`, {
-        method: 'POST',
-        body: JSON.stringify({requests: [{replaceAllText: {
-          containsText: {text: r.find, matchCase: r.matchCase},
-          replaceText: r.repl
-        }}]})
+        method: 'POST', body: JSON.stringify({requests})
       });
-      const n = d.replies[0].replaceAllText.occurrencesChanged || 0;
-      if (n) { changed++; total += n; }
+      (d.replies || []).forEach((rep, k) => {
+        const n = (rep.replaceAllText && rep.replaceAllText.occurrencesChanged) || 0;
+        if (n) { applied[k] += n; appliedFiles[k]++; }
+      });
       done++;
       await sleep(1100);
     }
     const stopped = done < r.results.length;
     r.results = r.results.slice(0, done);
-    $('sum').textContent = (stopped ? 'Thamano hoyeche. ' : '') +
-      `Replace sesh: ${changed} ta file e mot ${total} bar replace hoyeche (scan e peyechilam ${r.totalMatches} ta match).`;
+    const total = applied.reduce((a, b) => a + b, 0);
+    showSummary(
+      (stopped ? `Thamano hoyeche (${done} ta file hoyeche). ` : '') +
+      `Replace sesh: mot ${total} bar replace hoyeche (scan e peyechilam ${r.totalMatches} ta match).`,
+      r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl} : ${applied[k]} bar, ${appliedFiles[k]} file e`)
+    );
     showResults(r, 'replace');
-    setStatus('');
+    finishUI(buildReport(r, 'replace', applied, appliedFiles, stopped ? 'Majhpothe thamano hoyechilo.' : ''));
   } catch (e) { setStatus('Error: ' + e.message); }
-  finally { busy = false; }
+  finally { busy = false; releaseAwake(); }
 }
 </script>
 </body>
