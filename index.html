@@ -4,10 +4,20 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <script src="https://accounts.google.com/gsi/client"></script>
 <style>
-  body{font-family:sans-serif;padding:16px}
+  body{font-family:sans-serif;padding:16px;max-width:700px;margin:auto}
   input[type=text],button{width:100%;padding:12px;margin-bottom:10px;font-size:16px;box-sizing:border-box}
   #list label{display:block;padding:8px 0}
   #list input{width:auto;margin-right:8px}
+  .row{display:flex;gap:8px}
+  .row button{flex:1}
+  #sum{font-weight:bold;margin:10px 0}
+  #log{color:#555;font-size:14px;white-space:pre-wrap}
+  .file{margin-top:14px;padding-top:8px;border-top:1px solid #ccc}
+  .file a{font-weight:bold;word-break:break-word}
+  .ln{margin:6px 0;padding:6px;background:#f4f4f4;border-radius:6px;word-break:break-word;font-size:14px;color:#000}
+  mark{background:#ffe066}
+  del{background:#ffc9c9}
+  ins{background:#b2f2bb;text-decoration:none}
 </style>
 </head>
 <body>
@@ -17,16 +27,22 @@
 <input type="text" id="f" placeholder="Vul term">
 <input type="text" id="r" placeholder="Shothik term">
 <label><input type="checkbox" id="c" checked style="width:auto"> Case match</label><br><br>
-<button onclick="go()">Replace</button>
-<pre id="o" style="white-space:pre-wrap"></pre>
+<div class="row">
+  <button onclick="preview()">Preview (change hobe na)</button>
+  <button onclick="replaceAll()">Replace</button>
+</div>
+<button onclick="stopFlag=true">Stop</button>
+<div id="log"></div>
+<div id="sum"></div>
+<div id="res"></div>
 <script>
 const CLIENT_ID = '374294915623-ocgsd7n31s1h4vgm5pshbosuvl1g5u6g.apps.googleusercontent.com';
 const ROOT_ID = '1Y7cF60rpEzIgwH-vxDZ35Ltgsmt03has';
 const SCOPE = 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/documents';
-let token = null;
-const out = document.getElementById('o');
-const log = m => out.textContent += m + '\n';
+let token = null, stopFlag = false, busy = false;
+const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const setStatus = m => { $('log').textContent = m; };
 
 function login() {
   return new Promise((res, rej) => {
@@ -40,7 +56,7 @@ function login() {
 async function api(url, opt = {}) {
   for (let i = 0; i < 5; i++) {
     const r = await fetch(url, {...opt, headers: {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json'}});
-    if (r.status === 429) { log('Limit chhuyeche, 30s opekkha...'); await sleep(30000); continue; }
+    if (r.status === 429) { setStatus('Limit chhuyeche, 30s opekkha...'); await sleep(30000); continue; }
     if (!r.ok) throw new Error(await r.text());
     return r.json();
   }
@@ -48,7 +64,7 @@ async function api(url, opt = {}) {
 }
 
 async function loadNovels() {
-  const list = document.getElementById('list');
+  const list = $('list');
   list.textContent = 'Load hocche...';
   try {
     if (!token) await login();
@@ -71,48 +87,175 @@ function toggleAll(el) {
 }
 
 async function listDocs(folder) {
-  let ids = [], page = '';
+  let docs = [], page = '';
   do {
     const q = encodeURIComponent(`'${folder}' in parents and trashed=false and (mimeType='application/vnd.google-apps.document' or mimeType='application/vnd.google-apps.folder')`);
-    const d = await api(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,mimeType)&pageSize=1000&pageToken=${page}`);
+    const d = await api(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name,mimeType)&pageSize=1000&pageToken=${page}`);
     for (const f of d.files) {
-      if (f.mimeType.endsWith('folder')) ids.push(...await listDocs(f.id));
-      else ids.push(f.id);
+      if (f.mimeType.endsWith('folder')) docs.push(...await listDocs(f.id));
+      else docs.push({id: f.id, name: f.name});
     }
     page = d.nextPageToken || '';
   } while (page);
-  return ids;
+  return docs;
 }
 
-async function go() {
-  out.textContent = '';
+function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+function collectParas(content, out) {
+  for (const el of content || []) {
+    if (el.paragraph) {
+      const t = (el.paragraph.elements || []).map(e => e.textRun ? e.textRun.content : '').join('').replace(/\n$/, '');
+      if (t) out.push(t);
+    } else if (el.table) {
+      for (const row of el.table.tableRows || [])
+        for (const cell of row.tableCells || []) collectParas(cell.content, out);
+    }
+  }
+}
+
+async function scan() {
   const folders = [...document.querySelectorAll('.nv:checked')].map(cb => cb.value);
-  const find = document.getElementById('f').value, repl = document.getElementById('r').value;
-  if (!folders.length) return log('Age novel list load kore kompokkhe ekta novel tick korun.');
-  if (!find) return log('Vul term likhun.');
+  const find = $('f').value;
+  if (!folders.length) { setStatus('Age novel list load kore kompokkhe ekta novel tick korun.'); return null; }
+  if (!find) { setStatus('Vul term likhun.'); return null; }
+  if (!token) await login();
+  setStatus('File khujchi...');
+  const map = new Map();
+  for (const fl of folders) for (const d of await listDocs(fl)) map.set(d.id, d);
+  const docs = [...map.values()];
+  const re = new RegExp(escapeRegExp(find), $('c').checked ? 'g' : 'gi');
+  const results = [];
+  let totalMatches = 0;
+  for (let i = 0; i < docs.length; i++) {
+    if (stopFlag) { setStatus('Thamano hoyeche.'); return null; }
+    setStatus(`Scan: ${i + 1}/${docs.length}`);
+    const d = await api(`https://docs.googleapis.com/v1/documents/${docs[i].id}?fields=body`);
+    const paras = [];
+    collectParas(d.body && d.body.content, paras);
+    const lines = [];
+    let n = 0;
+    for (const p of paras) {
+      const m = p.match(re);
+      if (m) { n += m.length; lines.push(p); }
+    }
+    if (n) { results.push({id: docs[i].id, name: docs[i].name, n, lines}); totalMatches += n; }
+    await sleep(400);
+  }
+  return {docs: docs.length, results, totalMatches, find, repl: $('r').value, matchCase: $('c').checked};
+}
+
+function hl(t, re, tag, rep) {
+  const frag = document.createDocumentFragment();
+  const r = new RegExp(re.source, re.flags);
+  let last = 0, m;
+  while ((m = r.exec(t))) {
+    frag.append(t.slice(last, m.index));
+    const el = document.createElement(tag);
+    el.textContent = rep === null ? m[0] : rep;
+    frag.append(el);
+    last = m.index + m[0].length;
+  }
+  frag.append(t.slice(last));
+  return frag;
+}
+
+function buildLine(text, re, repl, mode) {
+  let t = text, pre = '', post = '';
+  if (text.length > 200) {
+    const first = Math.max(0, text.search(re));
+    const s = Math.max(0, first - 80), e = Math.min(text.length, first + 120);
+    t = text.slice(s, e);
+    if (s > 0) pre = '…';
+    if (e < text.length) post = '…';
+  }
+  const wrap = document.createElement('div');
+  wrap.className = 'ln';
+  if (mode === 'preview') {
+    wrap.append(pre, hl(t, re, 'mark', null), post);
+  } else {
+    const a = document.createElement('div');
+    a.append('Purano: ', pre, hl(t, re, 'del', null), post);
+    const b = document.createElement('div');
+    b.append('Notun: ', pre, hl(t, re, 'ins', repl), post);
+    wrap.append(a, b);
+  }
+  return wrap;
+}
+
+function showResults(r, mode) {
+  const res = $('res');
+  res.textContent = '';
+  const re = new RegExp(escapeRegExp(r.find), r.matchCase ? 'g' : 'gi');
+  for (const f of r.results) {
+    const box = document.createElement('div');
+    box.className = 'file';
+    const a = document.createElement('a');
+    a.href = 'https://docs.google.com/document/d/' + f.id + '/edit';
+    a.target = '_blank';
+    a.textContent = `${f.name} (${f.n} ta match)`;
+    box.append(a);
+    for (const ln of f.lines) box.append(buildLine(ln, re, r.repl, mode));
+    res.append(box);
+  }
+}
+
+async function preview() {
+  if (busy) return;
+  busy = true; stopFlag = false;
+  $('sum').textContent = ''; $('res').textContent = '';
   try {
-    if (!token) await login();
-    log('File khujchi...');
-    let ids = [];
-    for (const fl of folders) ids.push(...await listDocs(fl));
-    ids = [...new Set(ids)];
-    log(ids.length + ' ta doc pelam.');
-    let changedFiles = 0, total = 0;
-    for (let i = 0; i < ids.length; i++) {
-      const d = await api(`https://docs.googleapis.com/v1/documents/${ids[i]}:batchUpdate`, {
+    const r = await scan();
+    if (!r) return;
+    $('sum').textContent = `Preview: ${r.docs} ta doc check hoyeche, ${r.results.length} ta file e ${r.totalMatches} ta match. Kichu change hoyni.`;
+    showResults(r, 'preview');
+    setStatus('');
+  } catch (e) { setStatus('Error: ' + e.message); }
+  finally { busy = false; }
+}
+
+async function replaceAll() {
+  if (busy) return;
+  busy = true; stopFlag = false;
+  $('sum').textContent = ''; $('res').textContent = '';
+  try {
+    const r = await scan();
+    if (!r) return;
+    if (!r.results.length) {
+      $('sum').textContent = `${r.docs} ta doc check hoyeche, kono match paoa jayni.`;
+      setStatus('');
+      return;
+    }
+    if (!confirm(`${r.results.length} ta file e ${r.totalMatches} ta match paoa geche.\n"${r.find}" -> "${r.repl}" replace korbo?`)) {
+      $('sum').textContent = `Batil. ${r.results.length} ta file e ${r.totalMatches} ta match chilo, kichu change hoyni.`;
+      showResults(r, 'preview');
+      setStatus('');
+      return;
+    }
+    let changed = 0, total = 0, done = 0;
+    for (let i = 0; i < r.results.length; i++) {
+      if (stopFlag) break;
+      setStatus(`Replace: ${i + 1}/${r.results.length}`);
+      const d = await api(`https://docs.googleapis.com/v1/documents/${r.results[i].id}:batchUpdate`, {
         method: 'POST',
         body: JSON.stringify({requests: [{replaceAllText: {
-          containsText: {text: find, matchCase: document.getElementById('c').checked},
-          replaceText: repl
+          containsText: {text: r.find, matchCase: r.matchCase},
+          replaceText: r.repl
         }}]})
       });
       const n = d.replies[0].replaceAllText.occurrencesChanged || 0;
-      if (n) { changedFiles++; total += n; }
-      log(`${i + 1}/${ids.length} done` + (n ? ` (${n} jaygay change)` : ''));
+      if (n) { changed++; total += n; }
+      done++;
       await sleep(1100);
     }
-    log(`\nSesh: ${changedFiles} ta file e, mot ${total} bar change.`);
-  } catch (e) { log('Error: ' + e.message); }
+    const stopped = done < r.results.length;
+    r.results = r.results.slice(0, done);
+    $('sum').textContent = (stopped ? 'Thamano hoyeche. ' : '') +
+      `Replace sesh: ${changed} ta file e mot ${total} bar replace hoyeche (scan e peyechilam ${r.totalMatches} ta match).`;
+    showResults(r, 'replace');
+    setStatus('');
+  } catch (e) { setStatus('Error: ' + e.message); }
+  finally { busy = false; }
 }
 </script>
 </body>
