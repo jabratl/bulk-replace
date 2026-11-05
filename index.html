@@ -1,134 +1,247 @@
 <!DOCTYPE html>
 <html lang="bn">
 <head>
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
+<title>Bulk Replace</title>
+<script>try{var t=localStorage.getItem('theme');if(t==='light'||t==='dark'){document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t}}catch(e){}</script>
 <script src="https://accounts.google.com/gsi/client"></script>
 <style>
-  :root{--bg:#fff;--fg:#111;--mut:#555;--card:#f4f4f4;--bd:#ccc;--btn:#ececec}
-  @media (prefers-color-scheme:dark){:root{--bg:#121212;--fg:#eee;--mut:#aaa;--card:#1e1e1e;--bd:#444;--btn:#2a2a2a}}
-  body{background:var(--bg);color:var(--fg);font-family:sans-serif;padding:16px;max-width:720px;margin:auto}
-  input[type=text],input[type=number],textarea,select,button{width:100%;padding:12px;margin-bottom:10px;font-size:16px;box-sizing:border-box;background:var(--btn);color:var(--fg);border:1px solid var(--bd);border-radius:8px}
-  textarea{min-height:120px;font-family:inherit}
-  details.box{border:1px solid var(--bd);border-radius:8px;padding:8px 12px;margin-bottom:12px}
-  summary{padding:6px 0;cursor:pointer}
-  .row{display:flex;gap:8px}
-  .row>*{flex:1}
-  .opt{display:block;padding:6px 0}
-  .opt input{width:auto;margin-right:8px}
-  .hint{color:var(--mut);font-size:13px;margin:0 0 10px}
-  .node{margin:0}
-  .kids{margin-left:16px;border-left:1px solid var(--bd);padding-left:6px;font-size:15px}
-  .nrow{display:flex;align-items:center}
-  .nrow label{display:flex;align-items:center;flex:1;padding:7px 0;word-break:break-word}
-  .nrow input{width:auto;margin:0 8px 0 0}
-  .tg{display:inline-block;width:36px;text-align:center;cursor:pointer;user-select:none;color:var(--mut);font-size:18px}
-  #selbox,#selinfo{font-size:13px;color:var(--mut);margin:6px 0 10px;word-break:break-word}
-  progress{width:100%;height:10px}
-  #log{color:var(--mut);font-size:14px;white-space:pre-wrap;min-height:18px}
-  #sum{margin:10px 0}
-  #sum .head{font-weight:bold;margin-bottom:6px}
-  #sum .pr{font-size:14px;padding:2px 0;word-break:break-word}
-  details.file{margin-top:10px;padding-top:6px;border-top:1px solid var(--bd)}
-  details.file>summary{font-weight:bold;word-break:break-word}
-  details.file>summary input{width:auto;margin:0 8px 0 0;vertical-align:middle}
-  details.file>summary a{color:inherit}
-  .ln{margin:6px 0;padding:6px;background:var(--card);border-radius:6px;word-break:break-word;font-size:14px;line-height:1.5}
-  .ln input{width:auto;margin:0 8px 0 0;vertical-align:middle}
-  .tag{font-size:12px;color:var(--mut);margin-right:4px}
-  .warn{font-size:12px;color:var(--mut)}
-  del{background:#ffc9c9;color:#000}
-  ins{background:#b2f2bb;color:#000;text-decoration:none}
+:root{--bg:#f1f3f8;--sf:#fff;--sf2:#f5f7fb;--fg:#162033;--mut:#5b667a;--bd:#dce1ec;--ac:#2f5bea;--acf:#fff;--acs:#e5ebff;--dl:#fde3df;--dlf:#8b1a0e;--in:#d9f4e1;--inf:#0c5a26;--er:#b42318;--sh:0 1px 2px rgba(20,30,60,.06),0 8px 24px rgba(20,30,60,.06)}
+:root[data-theme=dark]{--bg:#0d111b;--sf:#151b29;--sf2:#1b2234;--fg:#e8ecf4;--mut:#98a3b8;--bd:#2a3347;--ac:#86a0ff;--acf:#0b1020;--acs:#202b52;--dl:#4b1f1c;--dlf:#ffb7ad;--in:#163d27;--inf:#9ee8b8;--er:#ff9a8f;--sh:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35)}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0d111b;--sf:#151b29;--sf2:#1b2234;--fg:#e8ecf4;--mut:#98a3b8;--bd:#2a3347;--ac:#86a0ff;--acf:#0b1020;--acs:#202b52;--dl:#4b1f1c;--dlf:#ffb7ad;--in:#163d27;--inf:#9ee8b8;--er:#ff9a8f;--sh:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35)}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI","Noto Sans Bengali",Roboto,sans-serif}
+.app{max-width:1200px;margin:0 auto;padding:16px 14px 190px;padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}
+.top{display:flex;align-items:center;gap:12px;margin:4px 0 16px}
+.top h1{margin:0;font-size:22px;line-height:1.2;letter-spacing:-.01em}
+.top p{margin:2px 0 0;color:var(--mut);font-size:13px}
+.top .t{flex:1;min-width:0}
+.ver{font-size:12px;font-weight:600;background:var(--acs);color:var(--ac);padding:2px 8px;border-radius:99px;margin-left:6px;vertical-align:middle}
+.cols{display:grid;gap:16px}
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:16px;box-shadow:var(--sh);margin-bottom:14px;overflow:hidden}
+.card>summary{display:flex;align-items:center;gap:10px;padding:12px 16px;min-height:54px;font-weight:650;cursor:pointer;list-style:none;user-select:none}
+.card>summary::-webkit-details-marker{display:none}
+.card>summary::after{content:"";margin-left:auto;width:8px;height:8px;border-right:2px solid var(--mut);border-bottom:2px solid var(--mut);transform:rotate(45deg) translate(-2px,-2px);transition:transform .2s}
+.card[open]>summary::after{transform:rotate(-135deg)}
+.card[open]>summary{border-bottom:1px solid var(--bd)}
+.bd{padding:14px 16px 16px;display:grid;gap:10px}
+.n{flex:none;width:26px;height:26px;border-radius:50%;background:var(--acs);color:var(--ac);display:grid;place-items:center;font-size:13px;font-weight:700}
+.sub{font-weight:400;color:var(--mut);font-size:13px}
+input[type=text],input[type=number],textarea,select{width:100%;min-height:46px;padding:10px 12px;font:inherit;font-size:16px;background:var(--sf2);color:var(--fg);border:1px solid var(--bd);border-radius:10px;transition:border-color .15s,box-shadow .15s}
+textarea{min-height:150px;line-height:1.7;resize:vertical}
+input::placeholder,textarea::placeholder{color:var(--mut);opacity:.8}
+input[type=text]:focus,input[type=number]:focus,textarea:focus,select:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px var(--acs)}
+button{font:inherit;font-size:15px;font-weight:600;min-height:46px;padding:10px 14px;border-radius:10px;border:1px solid var(--bd);background:var(--sf2);color:var(--fg);cursor:pointer;transition:background .15s,transform .05s,opacity .15s;-webkit-tap-highlight-color:transparent}
+button:hover:not(:disabled){background:var(--acs)}
+button:active:not(:disabled){transform:scale(.98)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.pri{background:var(--ac);color:var(--acf);border-color:var(--ac)}
+button.pri:hover:not(:disabled){background:var(--ac);filter:brightness(1.08)}
+button.stop{background:var(--dl);color:var(--dlf);border-color:transparent}
+button.sm{min-height:38px;padding:6px 10px;font-size:14px}
+button.icon{min-width:46px;padding:10px}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row>*{flex:1 1 130px;min-width:0}
+.hint{margin:0;color:var(--mut);font-size:13px;line-height:1.5}
+.sw{display:flex;align-items:center;gap:12px;padding:6px 0;cursor:pointer;font-size:15px}
+.sw input{-webkit-appearance:none;appearance:none;flex:none;width:44px;height:26px;margin:0;border-radius:99px;background:var(--bd);position:relative;cursor:pointer;transition:background .2s}
+.sw input::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .2s}
+.sw input:checked{background:var(--ac)}
+.sw input:checked::after{transform:translateX(18px)}
+input[type=checkbox]{accent-color:var(--ac)}
+#list{max-height:340px;overflow:auto;border:1px solid var(--bd);border-radius:12px;padding:6px 8px;background:var(--sf2);overscroll-behavior:contain}
+#list:empty::before{content:"Upore \"Novel list load\" tap korun.";display:block;padding:18px 8px;text-align:center;color:var(--mut);font-size:14px}
+.allrow{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--bd);margin-bottom:4px;font-size:15px;cursor:pointer}
+.allrow input,.nrow input,.ln input,details.file>summary input{width:20px;height:20px;margin:0;flex:none}
+.nrow{display:flex;align-items:center;border-radius:8px}
+.nrow:hover{background:var(--acs)}
+.nrow label{display:flex;align-items:center;gap:10px;flex:1;min-width:0;padding:10px 4px;cursor:pointer;word-break:break-word;font-size:15px}
+.tg{flex:none;width:40px;height:40px;display:grid;place-items:center;cursor:pointer;user-select:none;color:var(--mut);font-size:16px;border-radius:8px}
+.tg:hover{color:var(--ac)}
+.kids{margin-left:19px;border-left:2px solid var(--bd);padding-left:6px;font-size:14.5px}
+.kids.empty{color:var(--mut);font-size:13px;padding:6px 10px}
+.selbox{display:flex;flex-wrap:wrap;gap:6px;max-height:126px;overflow:auto;font-size:13px}
+.selbox.none{color:var(--mut);display:block}
+button.chip{display:inline-flex;align-items:center;gap:8px;min-height:34px;max-width:100%;padding:4px 8px 4px 12px;border-radius:99px;border:0;background:var(--acs);color:var(--ac);font-size:13px;font-weight:600}
+button.chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+button.chip b{flex:none;font-size:16px;line-height:1;opacity:.7}
+.dock{background:var(--sf);border:1px solid var(--bd);border-radius:16px;box-shadow:var(--sh);padding:12px;display:grid;gap:10px}
+.dock .row>.pri{flex:2 1 160px}
+#log{color:var(--mut);font-size:13.5px;white-space:pre-wrap;word-break:break-word;max-height:4.6em;overflow:auto}
+#log:empty{display:none}
+progress{-webkit-appearance:none;appearance:none;width:100%;height:6px;border:0;border-radius:9px;background:var(--bd);overflow:hidden}
+progress::-webkit-progress-bar{background:var(--bd)}
+progress::-webkit-progress-value{background:var(--ac);transition:width .3s}
+progress::-moz-progress-bar{background:var(--ac)}
+#empty{padding:26px 18px;text-align:center;color:var(--mut);font-size:14px}
+#empty b{display:block;color:var(--fg);font-size:16px;margin-bottom:4px}
+#out:has(#sum:not(:empty)) #empty{display:none}
+#sum:not(:empty){background:var(--sf);border:1px solid var(--bd);border-radius:16px;box-shadow:var(--sh);padding:14px 16px;margin-bottom:14px}
+#sum .head{font-weight:650;white-space:pre-line;margin-bottom:8px}
+#sum .pr{font-size:14px;padding:5px 10px;margin-top:4px;border-left:3px solid var(--ac);background:var(--sf2);border-radius:0 8px 8px 0;word-break:break-word}
+#rv{padding:14px 16px;display:grid;gap:10px;position:relative}
+#selinfo{font-weight:650;font-size:14px;color:var(--ac)}
+details.box{border:1px solid var(--bd);border-radius:12px;background:var(--sf2)}
+details.box>summary{padding:10px 12px;min-height:44px;cursor:pointer;font-weight:600;font-size:14.5px;display:flex;align-items:center}
+details.box>.bd{padding:4px 12px 12px}
+#exp{width:100%;margin-bottom:14px}
+#res{margin-bottom:10px}
+details.file{border:1px solid var(--bd);border-radius:12px;background:var(--sf);margin:10px 0;overflow:hidden}
+details.file>summary{display:flex;align-items:center;gap:10px;padding:12px;font-weight:600;cursor:pointer;list-style:none;word-break:break-word;background:var(--sf2)}
+details.file>summary::-webkit-details-marker{display:none}
+details.file>summary a{flex:1;min-width:0;color:var(--fg);text-decoration:none}
+details.file>summary a:hover{color:var(--ac);text-decoration:underline}
+details.file>summary::after{content:"";flex:none;width:8px;height:8px;border-right:2px solid var(--mut);border-bottom:2px solid var(--mut);transform:rotate(45deg);transition:transform .2s}
+details.file[open]>summary::after{transform:rotate(-135deg)}
+details.file>.ln{margin:8px 10px}
+details.file>.ln:last-child{margin-bottom:12px}
+.ln{display:flow-root;padding:10px 12px;background:var(--sf2);border:1px solid var(--bd);border-radius:10px;word-break:break-word;font-size:14.5px;line-height:1.65}
+.ln input{float:left;margin:2px 10px 0 0}
+.tag{font-size:12px;font-weight:700;color:var(--ac);margin-right:6px}
+.warn{clear:both;font-size:12.5px;color:var(--er);margin-top:4px}
+del{background:var(--dl);color:var(--dlf);text-decoration:line-through;padding:0 3px;border-radius:4px}
+ins{background:var(--in);color:var(--inf);text-decoration:none;padding:0 3px;border-radius:4px;font-weight:600}
+@media(min-width:980px){
+.app{padding-bottom:40px}
+.cols{grid-template-columns:minmax(0,5fr) minmax(0,6fr);align-items:start}
+.dock{position:sticky;top:12px;z-index:5;margin-bottom:14px}
+}
+@media(max-width:979px){
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:20;border-radius:18px 18px 0 0;border-bottom:0;padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+}
+@media(max-width:480px){.top h1{font-size:19px}.bd{padding:12px}.card>summary{padding:10px 12px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 </style>
+
 </head>
 <body>
-<h3>Bulk Replace</h3>
+<div class="app">
+<header class="top">
+  <div class="t"><h1>Bulk Replace<span class="ver">v4</span></h1><p>Google Docs novel er term ek sathe thik korun</p></div>
+  <button class="icon" id="thm" onclick="cycleTheme()" aria-label="Theme bodlan" title="Theme bodlan">Auto</button>
+</header>
 
-<details class="box">
-  <summary>Settings (Client ID / My Work folder ID)</summary>
-  <input type="text" id="cid" placeholder="Google OAuth Client ID">
-  <input type="text" id="root" placeholder="My Work folder ID (ba folder link)">
-  <button onclick="saveSettings()">Settings save korun</button>
-  <p class="hint">Eta ei phone er browser e save thake. Khali rekhe save korle code er default ID use hobe.</p>
-  <div class="row">
-    <button onclick="switchAccount()">Onno Google account diye login</button>
-    <button onclick="logout()">Logout</button>
-  </div>
-</details>
+<div class="cols">
+<div class="left">
 
-<button onclick="loadNovels()">Novel list load korun</button>
-<div id="list"></div>
-<div id="selbox">Kono folder select kora nai.</div>
-<p class="hint">▸ chap diye subfolder khulun. Je folder tick korben shudhu sei folder (ar tar bhitorer subfolder) e kaj hobe.</p>
-<div class="row">
-  <button onclick="folderSel('all')">Folder: shob</button>
-  <button onclick="folderSel('none')">Folder: bad</button>
-  <button onclick="folderSel('invert')">Folder: ulto</button>
-</div>
-<input type="text" id="extra" placeholder="Extra folder ID/link (optional, comma diye)">
-
-<textarea id="pairs" placeholder="Ek line e ek pair:&#10;vul term => shothik term&#10;onno vul => onno shothik&#10;# ei rokom line ignore hobe"></textarea>
-<p class="hint">Format: <b>vul =&gt; shothik</b>. Shothik ongsho khali rakhle oi shobdo muche jabe.</p>
-
-<details class="box">
-  <summary>Glossary (novel-wise term list save)</summary>
-  <input type="text" id="gname" placeholder="Glossary nam (jemon novel er nam)">
-  <div class="row">
-    <button onclick="saveGloss()">Save</button>
-    <button onclick="loadGloss()">Load</button>
-    <button onclick="delGloss()">Delete</button>
-  </div>
-  <select id="gsel"></select>
-</details>
-
-<details class="box" open>
-  <summary>Chapter range / filter</summary>
-  <div class="row">
-    <input type="number" id="rfrom" placeholder="Chapter koto theke (jemon 10)" inputmode="numeric">
-    <input type="number" id="rto" placeholder="Chapter koto porjonto (jemon 50)" inputmode="numeric">
-  </div>
-  <input type="text" id="nfilter" placeholder="File nam filter (optional, jemon: Arc 2)">
-  <p class="hint">Range file er nam er chapter number (Chapter 12, Ch 12, ba prothom number) theke nei. Number na thakle oi file range e dhora hoy na. Dutoi khali rakhle shob chapter.</p>
-</details>
-
-<label class="opt"><input type="checkbox" id="c" checked> Case match</label>
-<label class="opt"><input type="checkbox" id="rec" checked> Tick kora folder er subfolder gulo-o include korun</label>
-
-<div class="row">
-  <button onclick="preview()">Preview ar review</button>
-  <button onclick="replaceAll()">Shob replace</button>
-</div>
-<button onclick="stopFlag=true">Stop</button>
-<progress id="pg" value="0" max="1" hidden></progress>
-<div id="log"></div>
-<div id="sum"></div>
-
-<div id="rv" hidden>
-  <div id="selinfo"></div>
-  <div class="row">
-    <button onclick="selAll(true)">Shob select</button>
-    <button onclick="selAll(false)">Shob bad</button>
-    <button onclick="selInvert()">Ulto</button>
-  </div>
-  <details class="box">
-    <summary>Aro select tools</summary>
-    <select id="pairSel"></select>
+<details class="card">
+  <summary>Settings ar account</summary>
+  <div class="bd">
+    <input type="text" id="cid" placeholder="Google OAuth Client ID" autocomplete="off">
+    <input type="text" id="root" placeholder="My Work folder ID (ba folder link)" autocomplete="off">
+    <button class="pri" onclick="saveSettings()">Settings save korun</button>
+    <p class="hint">Eta ei browser e save thake. Khali rekhe save korle code er default ID use hobe.</p>
     <div class="row">
-      <button onclick="selPair('only')">Shudhu ei pair select</button>
-      <button onclick="selPair('off')">Ei pair bad</button>
+      <button onclick="switchAccount()">Onno Google account diye login</button>
+      <button onclick="logout()">Logout</button>
     </div>
-    <input type="text" id="lineQ" placeholder="Line e ei shobdo thakle (jemon: tar bhai)">
-    <button onclick="selLine('only')">Shudhu ei gula select (baki sob bad)</button>
+  </div>
+</details>
+
+<details class="card" open>
+  <summary><span class="n">1</span>Novel ar folder</summary>
+  <div class="bd">
+    <button class="pri" onclick="loadNovels()">Novel list load korun</button>
+    <input type="text" id="nq" placeholder="Novel khujun..." oninput="filterNovels()" autocomplete="off">
+    <div id="list"></div>
     <div class="row">
-      <button onclick="selLine('on')">Ei gula-o select</button>
-      <button onclick="selLine('off')">Ei gula bad</button>
+      <button class="sm" onclick="folderSel('all')">Folder: shob</button>
+      <button class="sm" onclick="folderSel('none')">Folder: bad</button>
+      <button class="sm" onclick="folderSel('invert')">Folder: ulto</button>
     </div>
-    <p class="hint">"Ulto" mane select kora gula bad, bad gula select.</p>
-  </details>
-  <button onclick="applySelected()"><b>Shudhu tick kora gula replace korun</b></button>
+    <div id="selbox" class="selbox none">Kono folder select kora nai.</div>
+    <p class="hint">Tick kora folder (ar tar subfolder) e kaj hobe. Subfolder dekhte ▸ tap korun. Chip e tap korle folder bad hoy.</p>
+    <input type="text" id="extra" placeholder="Extra folder ID/link (optional, comma diye)" autocomplete="off">
+    <label class="sw"><input type="checkbox" id="rec" checked>Tick kora folder er subfolder-o include korun</label>
+  </div>
+</details>
+
+<details class="card" open>
+  <summary><span class="n">2</span>Term pair</summary>
+  <div class="bd">
+    <textarea id="pairs" placeholder="Ek line e ek pair:&#10;vul term => shothik term&#10;onno vul => onno shothik&#10;# ei rokom line ignore hobe"></textarea>
+    <p class="hint">Format: <b>vul =&gt; shothik</b>. Shothik ongsho khali rakhle oi shobdo muche jabe.</p>
+    <details class="box">
+      <summary>Glossary (novel-wise term list save)</summary>
+      <div class="bd">
+        <input type="text" id="gname" placeholder="Glossary nam (jemon novel er nam)" autocomplete="off">
+        <div class="row">
+          <button onclick="saveGloss()">Save</button>
+          <button onclick="loadGloss()">Load</button>
+          <button onclick="delGloss()">Delete</button>
+        </div>
+        <select id="gsel"></select>
+      </div>
+    </details>
+  </div>
+</details>
+
+<details class="card" open>
+  <summary><span class="n">3</span>Chapter range ar option</summary>
+  <div class="bd">
+    <div class="row">
+      <input type="number" id="rfrom" placeholder="Chapter theke (jemon 10)" inputmode="numeric" min="0">
+      <input type="number" id="rto" placeholder="Chapter porjonto (jemon 50)" inputmode="numeric" min="0">
+    </div>
+    <input type="text" id="nfilter" placeholder="File nam filter (optional, jemon: Arc 2)" autocomplete="off">
+    <p class="hint">Range file er nam er chapter number (Chapter 12, Ch 12, ba prothom number) theke nei. Number na thakle oi file range e dhora hoy na. Dutoi khali rakhle shob chapter.</p>
+    <label class="sw"><input type="checkbox" id="c" checked>Case match (boro/chhoto hater milate hobe)</label>
+  </div>
+</details>
+
 </div>
-<button id="exp" onclick="exportReport()" hidden>Report save korun (.txt)</button>
-<div id="res"></div>
+
+<div class="right">
+<div class="dock" id="dock">
+  <progress id="pg" value="0" max="1" hidden></progress>
+  <div id="log" role="status" aria-live="polite"></div>
+  <div class="row">
+    <button class="pri" id="bPrev" onclick="preview()">Preview ar review</button>
+    <button id="bAll" onclick="replaceAll()">Shob replace</button>
+    <button class="stop" id="bStop" onclick="stopFlag=true" hidden>Stop</button>
+  </div>
+</div>
+
+<div id="out">
+  <div class="card" id="empty"><b>Ekhono kono result nai</b>Folder ar term din, tarpor Preview chalan. Kichu change hobe na, age shob match dekhe nite parben.</div>
+  <div id="sum"></div>
+  <div class="card" id="rv" hidden>
+    <div id="selinfo"></div>
+    <div class="row">
+      <button class="sm" onclick="selAll(true)">Shob select</button>
+      <button class="sm" onclick="selAll(false)">Shob bad</button>
+      <button class="sm" onclick="selInvert()">Ulto</button>
+    </div>
+    <details class="box">
+      <summary>Aro select tools</summary>
+      <div class="bd">
+        <select id="pairSel"></select>
+        <div class="row">
+          <button class="sm" onclick="selPair('only')">Shudhu ei pair select</button>
+          <button class="sm" onclick="selPair('off')">Ei pair bad</button>
+        </div>
+        <input type="text" id="lineQ" placeholder="Line e ei shobdo thakle (jemon: tar bhai)" autocomplete="off">
+        <button class="sm" onclick="selLine('only')">Shudhu ei gula select (baki bad)</button>
+        <div class="row">
+          <button class="sm" onclick="selLine('on')">Ei gula-o select</button>
+          <button class="sm" onclick="selLine('off')">Ei gula bad</button>
+        </div>
+        <p class="hint">"Ulto" mane select kora gula bad, bad gula select.</p>
+      </div>
+    </details>
+    <button class="pri" id="bApply" onclick="applySelected()">Shudhu tick kora gula replace korun</button>
+  </div>
+  <button id="exp" onclick="exportReport()" hidden>Report save korun (.txt)</button>
+  <div id="res"></div>
+</div>
+</div>
+</div>
+</div>
 
 <script>
 const DEFAULTS = {
@@ -148,7 +261,32 @@ const fid = s => { s = (s || '').trim(); const m = s.match(/folders\/([A-Za-z0-9
 
 let CLIENT_ID = store.get('cid', DEFAULTS.cid) || DEFAULTS.cid;
 let ROOT_ID = store.get('root', DEFAULTS.root) || DEFAULTS.root;
-let token = null, stopFlag = false, busy = false, lastReport = '', wl = null, lastScan = null;
+let token = null, stopFlag = false, lastReport = '', wl = null, lastScan = null;
+let _busy = false;
+Object.defineProperty(window, 'busy', {
+  get() { return _busy; },
+  set(v) {
+    _busy = !!v;
+    ['bPrev', 'bAll', 'bApply'].forEach(i => { const e = $(i); if (e) e.disabled = _busy; });
+    $('bStop').hidden = !_busy;
+    if (!_busy) $('pg').hidden = true;
+  }
+});
+
+/* theme: auto / light / dark */
+const THEMES = ['auto', 'light', 'dark'];
+function applyTheme(t) {
+  const r = document.documentElement;
+  if (t === 'auto') { r.removeAttribute('data-theme'); r.style.colorScheme = ''; }
+  else { r.dataset.theme = t; r.style.colorScheme = t; }
+  $('thm').textContent = t === 'auto' ? 'Auto' : t === 'light' ? 'Light' : 'Dark';
+}
+function cycleTheme() {
+  const cur = store.get('theme', 'auto');
+  const nx = THEMES[(THEMES.indexOf(cur) + 1) % THEMES.length];
+  store.set('theme', nx); applyTheme(nx);
+}
+applyTheme(THEMES.includes(store.get('theme', 'auto')) ? store.get('theme', 'auto') : 'auto');
 
 $('cid').value = CLIENT_ID;
 $('root').value = ROOT_ID;
@@ -170,7 +308,8 @@ function login(promptVal) {
   return new Promise((res, rej) => {
     google.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID, scope: SCOPE,
-      callback: t => t.access_token ? (token = t.access_token, res()) : rej(new Error('Login fail'))
+      callback: t => t && t.access_token ? (token = t.access_token, res()) : rej(new Error('Login fail')),
+      error_callback: e => rej(new Error('Login hoyni (' + ((e && e.type) || 'popup bondho ba block') + ')'))
     }).requestAccessToken(promptVal ? {prompt: promptVal} : {});
   });
 }
@@ -208,6 +347,8 @@ function makeNode(f, path) {
   row.className = 'nrow';
   const tg = document.createElement('span');
   tg.className = 'tg'; tg.textContent = '▸';
+  tg.setAttribute('role', 'button'); tg.tabIndex = 0; tg.setAttribute('aria-label', f.name + ' er subfolder');
+  tg.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tg.click(); } };
   const lab = document.createElement('label');
   const cb = document.createElement('input');
   cb.type = 'checkbox'; cb.className = 'nv'; cb.value = f.id; cb.dataset.path = path;
@@ -223,7 +364,7 @@ function makeNode(f, path) {
       try {
         const subs = await listFolders(f.id);
         loaded = true;
-        if (!subs.length) { kids.textContent = '(subfolder nai)'; kids.style.color = 'var(--mut)'; kids.style.fontSize = '13px'; }
+        if (!subs.length) { kids.textContent = '(subfolder nai)'; kids.className = 'kids empty'; }
         for (const s of subs) kids.append(makeNode(s, path + ' / ' + s.name));
       } catch (e) { tg.textContent = '▸'; setStatus('Error: ' + e.message); return; }
     }
@@ -239,16 +380,21 @@ async function loadNovels() {
   try {
     if (!token) await login();
     const d = await listFolders(ROOT_ID);
-    list.innerHTML = '<label class="opt"><input type="checkbox" id="all" onchange="toggleAll(this)"> <b>Shob novel</b></label>';
+    list.innerHTML = '<label class="allrow"><input type="checkbox" id="all" onchange="toggleAll(this)"><b>Shob novel</b></label>';
     for (const f of d) list.append(makeNode(f, f.name));
     if (!d.length) list.textContent = 'Kono novel folder paini.';
+    try {
+      const ids = JSON.parse(store.get('sel', '[]')) || [];
+      document.querySelectorAll('#list > .node > .nrow input.nv').forEach(cb => { if (ids.includes(cb.value)) cb.checked = true; });
+    } catch (e) {}
+    filterNovels();
     updateSel();
   } catch (e) { list.textContent = 'Error: ' + e.message; }
 }
 
 function toggleAll(el) {
-  document.querySelectorAll('#list > .node > .nrow input.nv').forEach(cb => cb.checked = el.checked);
-  updateFolderSel();
+  document.querySelectorAll('#list > .node').forEach(nd => { if (!nd.hidden) nd.querySelector('.nrow input.nv').checked = el.checked; });
+  folderChanged();
 }
 
 function selectedFolders() {
@@ -256,13 +402,34 @@ function selectedFolders() {
 }
 
 function updateFolderSel() {
-  const s = selectedFolders();
-  $('selbox').textContent = s.length
-    ? `Select kora ${s.length} ta folder: ` + s.map(x => x.path).join(' | ')
-    : 'Kono folder select kora nai.';
+  const s = selectedFolders(), box = $('selbox');
+  box.textContent = '';
+  if (!s.length) { box.className = 'selbox none'; box.textContent = 'Kono folder select kora nai.'; return; }
+  box.className = 'selbox';
+  for (const x of s) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip'; b.title = x.path + ' (bad dite tap korun)';
+    b.append(el('span', x.path), el('b', '×'));
+    b.onclick = () => {
+      const c = [...document.querySelectorAll('.nv')].find(n => n.value === x.id);
+      if (c) c.checked = false;
+      folderChanged();
+    };
+    box.append(b);
+  }
 }
 function updateSel() { updateFolderSel(); }
-$('list').addEventListener('change', updateFolderSel);
+function folderChanged() {
+  updateFolderSel();
+  store.set('sel', JSON.stringify(selectedFolders().map(x => x.id)));
+}
+$('list').addEventListener('change', folderChanged);
+function filterNovels() {
+  const q = $('nq').value.trim().toLowerCase();
+  document.querySelectorAll('#list > .node').forEach(nd => {
+    nd.hidden = !!q && !nd.querySelector('.nrow label').textContent.toLowerCase().includes(q);
+  });
+}
 
 async function listDocs(folder, recursive) {
   let docs = [], page = '';
@@ -565,8 +732,11 @@ function fillPairSel(r) {
   });
 }
 function folderSel(mode) {
-  document.querySelectorAll('.nv').forEach(cb => { cb.checked = mode === 'all' ? true : mode === 'none' ? false : !cb.checked; });
-  updateFolderSel();
+  document.querySelectorAll('.nv').forEach(cb => {
+    if (cb.closest('.node[hidden]')) return;
+    cb.checked = mode === 'all' ? true : mode === 'none' ? false : !cb.checked;
+  });
+  folderChanged();
 }
 function switchAccount() {
   token = null;
