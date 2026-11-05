@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="bn">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -55,7 +55,7 @@ button.icon{min-width:46px;padding:10px}
 .sw input:checked::after{transform:translateX(18px)}
 input[type=checkbox]{accent-color:var(--ac)}
 #list{max-height:340px;overflow:auto;border:1px solid var(--bd);border-radius:12px;padding:6px 8px;background:var(--sf2);overscroll-behavior:contain}
-#list:empty::before{content:"Upore \"Novel list load\" tap korun.";display:block;padding:18px 8px;text-align:center;color:var(--mut);font-size:14px}
+#list:empty::before{content:"Tap \"Load novel list\" above.";display:block;padding:18px 8px;text-align:center;color:var(--mut);font-size:14px}
 .allrow{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--bd);margin-bottom:4px;font-size:15px;cursor:pointer}
 .allrow input,.nrow input,.ln input,details.file>summary input{width:20px;height:20px;margin:0;flex:none}
 .nrow{display:flex;align-items:center;border-radius:8px}
@@ -122,54 +122,54 @@ ins{background:var(--in);color:var(--inf);text-decoration:none;padding:0 3px;bor
 <body>
 <div class="app">
 <header class="top">
-  <div class="t"><h1>Bulk Replace<span class="ver">v4</span></h1><p>Google Docs novel er term ek sathe thik korun</p></div>
-  <button class="icon" id="thm" onclick="cycleTheme()" aria-label="Theme bodlan" title="Theme bodlan">Auto</button>
+  <div class="t"><h1>Bulk Replace<span class="ver">v4</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
+  <button class="icon" id="thm" onclick="cycleTheme()" aria-label="Change theme" title="Change theme">Auto</button>
 </header>
 
 <div class="cols">
 <div class="left">
 
 <details class="card">
-  <summary>Settings ar account</summary>
+  <summary>Settings and account</summary>
   <div class="bd">
     <input type="text" id="cid" placeholder="Google OAuth Client ID" autocomplete="off">
     <input type="text" id="root" placeholder="My Work folder ID (ba folder link)" autocomplete="off">
-    <button class="pri" onclick="saveSettings()">Settings save korun</button>
-    <p class="hint">Eta ei browser e save thake. Khali rekhe save korle code er default ID use hobe.</p>
+    <button class="pri" onclick="saveSettings()">Save settings</button>
+    <p class="hint">Saved in this browser. Leave empty and save to use the default ID built into the code.</p>
     <div class="row">
-      <button onclick="switchAccount()">Onno Google account diye login</button>
+      <button onclick="switchAccount()">Sign in with another Google account</button>
       <button onclick="logout()">Logout</button>
     </div>
   </div>
 </details>
 
 <details class="card" open>
-  <summary><span class="n">1</span>Novel ar folder</summary>
+  <summary><span class="n">1</span>Novels and folders</summary>
   <div class="bd">
-    <button class="pri" onclick="loadNovels()">Novel list load korun</button>
-    <input type="text" id="nq" placeholder="Novel khujun..." oninput="filterNovels()" autocomplete="off">
+    <button class="pri" onclick="loadNovels()">Load novel list</button>
+    <input type="text" id="nq" placeholder="Search novels..." oninput="filterNovels()" autocomplete="off">
     <div id="list"></div>
     <div class="row">
-      <button class="sm" onclick="folderSel('all')">Folder: shob</button>
-      <button class="sm" onclick="folderSel('none')">Folder: bad</button>
-      <button class="sm" onclick="folderSel('invert')">Folder: ulto</button>
+      <button class="sm" onclick="folderSel('all')">Folders: all</button>
+      <button class="sm" onclick="folderSel('none')">Folders: none</button>
+      <button class="sm" onclick="folderSel('invert')">Folders: invert</button>
     </div>
-    <div id="selbox" class="selbox none">Kono folder select kora nai.</div>
-    <p class="hint">Tick kora folder (ar tar subfolder) e kaj hobe. Subfolder dekhte ▸ tap korun. Chip e tap korle folder bad hoy.</p>
-    <input type="text" id="extra" placeholder="Extra folder ID/link (optional, comma diye)" autocomplete="off">
-    <label class="sw"><input type="checkbox" id="rec" checked>Tick kora folder er subfolder-o include korun</label>
+    <div id="selbox" class="selbox none">No folder selected.</div>
+    <p class="hint">Only ticked folders (and their subfolders) are processed. Tap ▸ to see subfolders. Tap a chip to remove a folder.</p>
+    <input type="text" id="extra" placeholder="Extra folder IDs/links (optional, comma-separated)" autocomplete="off">
+    <label class="sw"><input type="checkbox" id="rec" checked>Include subfolders of ticked folders</label>
   </div>
 </details>
 
 <details class="card" open>
-  <summary><span class="n">2</span>Term pair</summary>
+  <summary><span class="n">2</span>Term pairs</summary>
   <div class="bd">
-    <textarea id="pairs" placeholder="Ek line e ek pair:&#10;vul term => shothik term&#10;onno vul => onno shothik&#10;# ei rokom line ignore hobe"></textarea>
-    <p class="hint">Format: <b>vul =&gt; shothik</b>. Shothik ongsho khali rakhle oi shobdo muche jabe.</p>
+    <textarea id="pairs" placeholder="One pair per line:&#10;wrong term => correct term&#10;another wrong => another correct&#10;# lines starting with # are ignored"></textarea>
+    <p class="hint">Format: <b>wrong =&gt; correct</b>. Leave the correct part empty to delete that word.</p>
     <details class="box">
-      <summary>Glossary (novel-wise term list save)</summary>
+      <summary>Glossary (save term lists per novel)</summary>
       <div class="bd">
-        <input type="text" id="gname" placeholder="Glossary nam (jemon novel er nam)" autocomplete="off">
+        <input type="text" id="gname" placeholder="Glossary name (e.g. the novel name)" autocomplete="off">
         <div class="row">
           <button onclick="saveGloss()">Save</button>
           <button onclick="loadGloss()">Load</button>
@@ -182,15 +182,15 @@ ins{background:var(--in);color:var(--inf);text-decoration:none;padding:0 3px;bor
 </details>
 
 <details class="card" open>
-  <summary><span class="n">3</span>Chapter range ar option</summary>
+  <summary><span class="n">3</span>Chapter range and options</summary>
   <div class="bd">
     <div class="row">
-      <input type="number" id="rfrom" placeholder="Chapter theke (jemon 10)" inputmode="numeric" min="0">
-      <input type="number" id="rto" placeholder="Chapter porjonto (jemon 50)" inputmode="numeric" min="0">
+      <input type="number" id="rfrom" placeholder="From chapter (e.g. 10)" inputmode="numeric" min="0">
+      <input type="number" id="rto" placeholder="To chapter (e.g. 50)" inputmode="numeric" min="0">
     </div>
-    <input type="text" id="nfilter" placeholder="File nam filter (optional, jemon: Arc 2)" autocomplete="off">
-    <p class="hint">Range file er nam er chapter number (Chapter 12, Ch 12, ba prothom number) theke nei. Number na thakle oi file range e dhora hoy na. Dutoi khali rakhle shob chapter.</p>
-    <label class="sw"><input type="checkbox" id="c" checked>Case match (boro/chhoto hater milate hobe)</label>
+    <input type="text" id="nfilter" placeholder="File name filter (optional, e.g. Arc 2)" autocomplete="off">
+    <p class="hint">The range uses the chapter number in the file name (Chapter 12, Ch 12, or the first number). Files without a number are skipped. Leave both empty for all chapters.</p>
+    <label class="sw"><input type="checkbox" id="c" checked>Match case (uppercase/lowercase must match)</label>
   </div>
 </details>
 
@@ -201,42 +201,42 @@ ins{background:var(--in);color:var(--inf);text-decoration:none;padding:0 3px;bor
   <progress id="pg" value="0" max="1" hidden></progress>
   <div id="log" role="status" aria-live="polite"></div>
   <div class="row">
-    <button class="pri" id="bPrev" onclick="preview()">Preview ar review</button>
-    <button id="bAll" onclick="replaceAll()">Shob replace</button>
+    <button class="pri" id="bPrev" onclick="preview()">Preview and review</button>
+    <button id="bAll" onclick="replaceAll()">Replace all</button>
     <button class="stop" id="bStop" onclick="stopFlag=true" hidden>Stop</button>
   </div>
 </div>
 
 <div id="out">
-  <div class="card" id="empty"><b>Ekhono kono result nai</b>Folder ar term din, tarpor Preview chalan. Kichu change hobe na, age shob match dekhe nite parben.</div>
+  <div class="card" id="empty"><b>No results yet</b>Pick folders and add terms, then run Preview. Nothing changes until you confirm.</div>
   <div id="sum"></div>
   <div class="card" id="rv" hidden>
     <div id="selinfo"></div>
     <div class="row">
-      <button class="sm" onclick="selAll(true)">Shob select</button>
-      <button class="sm" onclick="selAll(false)">Shob bad</button>
-      <button class="sm" onclick="selInvert()">Ulto</button>
+      <button class="sm" onclick="selAll(true)">Select all</button>
+      <button class="sm" onclick="selAll(false)">Select none</button>
+      <button class="sm" onclick="selInvert()">Invert</button>
     </div>
     <details class="box">
-      <summary>Aro select tools</summary>
+      <summary>More selection tools</summary>
       <div class="bd">
         <select id="pairSel"></select>
         <div class="row">
-          <button class="sm" onclick="selPair('only')">Shudhu ei pair select</button>
-          <button class="sm" onclick="selPair('off')">Ei pair bad</button>
+          <button class="sm" onclick="selPair('only')">Select only this pair</button>
+          <button class="sm" onclick="selPair('off')">Deselect this pair</button>
         </div>
-        <input type="text" id="lineQ" placeholder="Line e ei shobdo thakle (jemon: tar bhai)" autocomplete="off">
-        <button class="sm" onclick="selLine('only')">Shudhu ei gula select (baki bad)</button>
+        <input type="text" id="lineQ" placeholder="Lines containing this text (e.g. his brother)" autocomplete="off">
+        <button class="sm" onclick="selLine('only')">Select only these (deselect the rest)</button>
         <div class="row">
-          <button class="sm" onclick="selLine('on')">Ei gula-o select</button>
-          <button class="sm" onclick="selLine('off')">Ei gula bad</button>
+          <button class="sm" onclick="selLine('on')">Also select these</button>
+          <button class="sm" onclick="selLine('off')">Deselect these</button>
         </div>
-        <p class="hint">"Ulto" mane select kora gula bad, bad gula select.</p>
+        <p class="hint">"Invert" deselects what is selected and selects what is not.</p>
       </div>
     </details>
-    <button class="pri" id="bApply" onclick="applySelected()">Shudhu tick kora gula replace korun</button>
+    <button class="pri" id="bApply" onclick="applySelected()">Replace ticked matches only</button>
   </div>
-  <button id="exp" onclick="exportReport()" hidden>Report save korun (.txt)</button>
+  <button id="exp" onclick="exportReport()" hidden>Save report (.txt)</button>
   <div id="res"></div>
 </div>
 </div>
@@ -300,7 +300,7 @@ function saveSettings() {
   CLIENT_ID = c; ROOT_ID = r;
   $('cid').value = c; $('root').value = r;
   const ok = store.set('cid', c) && store.set('root', r);
-  setStatus(ok ? 'Settings save hoyeche. Novel list abar load korun.' : 'Save hoyni (browser storage block), tobe ei session e kaj korbe.');
+  setStatus(ok ? 'Settings saved. Reload the novel list.' : 'Not saved (browser storage is blocked), but it will work for this session.');
 }
 
 /* ---------- login / api ---------- */
@@ -309,7 +309,7 @@ function login(promptVal) {
     google.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID, scope: SCOPE,
       callback: t => t && t.access_token ? (token = t.access_token, res()) : rej(new Error('Login fail')),
-      error_callback: e => rej(new Error('Login hoyni (' + ((e && e.type) || 'popup bondho ba block') + ')'))
+      error_callback: e => rej(new Error('Login failed (' + ((e && e.type) || 'popup closed or blocked') + ')'))
     }).requestAccessToken(promptVal ? {prompt: promptVal} : {});
   });
 }
@@ -317,12 +317,12 @@ function login(promptVal) {
 async function api(url, opt = {}, retry = true) {
   for (let i = 0; i < 5; i++) {
     const r = await fetch(url, {...opt, headers: {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json'}});
-    if (r.status === 429) { setStatus('Limit chhuyeche, 30s opekkha...'); await sleep(30000); continue; }
+    if (r.status === 429) { setStatus('Rate limit reached, waiting 30s...'); await sleep(30000); continue; }
     if (r.status === 401 && retry) { token = null; await login(); return api(url, opt, false); }
     if (!r.ok) throw new Error(await r.text());
     return r.json();
   }
-  throw new Error('Onek bar try kore o hoyni');
+  throw new Error('Failed after several retries');
 }
 
 async function keepAwake() { try { if ('wakeLock' in navigator) wl = await navigator.wakeLock.request('screen'); } catch (e) {} }
@@ -347,7 +347,7 @@ function makeNode(f, path) {
   row.className = 'nrow';
   const tg = document.createElement('span');
   tg.className = 'tg'; tg.textContent = '▸';
-  tg.setAttribute('role', 'button'); tg.tabIndex = 0; tg.setAttribute('aria-label', f.name + ' er subfolder');
+  tg.setAttribute('role', 'button'); tg.tabIndex = 0; tg.setAttribute('aria-label', f.name + ' subfolders');
   tg.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tg.click(); } };
   const lab = document.createElement('label');
   const cb = document.createElement('input');
@@ -364,7 +364,7 @@ function makeNode(f, path) {
       try {
         const subs = await listFolders(f.id);
         loaded = true;
-        if (!subs.length) { kids.textContent = '(subfolder nai)'; kids.className = 'kids empty'; }
+        if (!subs.length) { kids.textContent = '(no subfolders)'; kids.className = 'kids empty'; }
         for (const s of subs) kids.append(makeNode(s, path + ' / ' + s.name));
       } catch (e) { tg.textContent = '▸'; setStatus('Error: ' + e.message); return; }
     }
@@ -376,13 +376,13 @@ function makeNode(f, path) {
 
 async function loadNovels() {
   const list = $('list');
-  list.textContent = 'Load hocche...';
+  list.textContent = 'Loading...';
   try {
     if (!token) await login();
     const d = await listFolders(ROOT_ID);
-    list.innerHTML = '<label class="allrow"><input type="checkbox" id="all" onchange="toggleAll(this)"><b>Shob novel</b></label>';
+    list.innerHTML = '<label class="allrow"><input type="checkbox" id="all" onchange="toggleAll(this)"><b>All novels</b></label>';
     for (const f of d) list.append(makeNode(f, f.name));
-    if (!d.length) list.textContent = 'Kono novel folder paini.';
+    if (!d.length) list.textContent = 'No novel folders found.';
     try {
       const ids = JSON.parse(store.get('sel', '[]')) || [];
       document.querySelectorAll('#list > .node > .nrow input.nv').forEach(cb => { if (ids.includes(cb.value)) cb.checked = true; });
@@ -404,11 +404,11 @@ function selectedFolders() {
 function updateFolderSel() {
   const s = selectedFolders(), box = $('selbox');
   box.textContent = '';
-  if (!s.length) { box.className = 'selbox none'; box.textContent = 'Kono folder select kora nai.'; return; }
+  if (!s.length) { box.className = 'selbox none'; box.textContent = 'No folder selected.'; return; }
   box.className = 'selbox';
   for (const x of s) {
     const b = document.createElement('button');
-    b.type = 'button'; b.className = 'chip'; b.title = x.path + ' (bad dite tap korun)';
+    b.type = 'button'; b.className = 'chip'; b.title = x.path + ' (tap to remove)';
     b.append(el('span', x.path), el('b', '×'));
     b.onclick = () => {
       const c = [...document.querySelectorAll('.nv')].find(n => n.value === x.id);
@@ -449,7 +449,7 @@ async function listDocs(folder, recursive) {
 function gloss() { try { return JSON.parse(store.get('gloss', '{}')) || {}; } catch (e) { return {}; } }
 function refreshGloss() {
   const sel = $('gsel');
-  sel.innerHTML = '<option value="">-- saved glossary --</option>';
+  sel.innerHTML = '<option value="">-- saved glossaries --</option>';
   for (const k of Object.keys(gloss()).sort()) {
     const o = document.createElement('option');
     o.value = k; o.textContent = k; sel.append(o);
@@ -457,23 +457,23 @@ function refreshGloss() {
 }
 function saveGloss() {
   const n = $('gname').value.trim();
-  if (!n) return setStatus('Glossary er nam likhun.');
+  if (!n) return setStatus('Enter a glossary name.');
   const g = gloss(); g[n] = $('pairs').value;
-  if (!store.set('gloss', JSON.stringify(g))) return setStatus('Save hoyni (browser storage block).');
+  if (!store.set('gloss', JSON.stringify(g))) return setStatus('Not saved (browser storage is blocked).');
   refreshGloss(); $('gsel').value = n;
-  setStatus(`"${n}" glossary save hoyeche.`);
+  setStatus(`Glossary "${n}" saved.`);
 }
 function loadGloss() {
   const k = $('gsel').value;
-  if (!k) return setStatus('Age list theke ekta glossary select korun.');
+  if (!k) return setStatus('Select a glossary from the list first.');
   $('pairs').value = gloss()[k] || ''; $('gname').value = k;
   store.set('draft', $('pairs').value);
-  setStatus(`"${k}" load hoyeche.`);
+  setStatus(`Glossary "${k}" loaded.`);
 }
 function delGloss() {
   const k = $('gsel').value;
   if (!k) return;
-  if (!confirm(`"${k}" glossary muche felbo?`)) return;
+  if (!confirm(`Delete glossary "${k}"?`)) return;
   const g = gloss(); delete g[k];
   store.set('gloss', JSON.stringify(g));
   refreshGloss();
@@ -556,13 +556,13 @@ function progress(i, n) {
 
 async function scan() {
   const {pairs, bad} = parsePairs();
-  if (bad.length) { setStatus('Ei line e "=>" nai: ' + bad[0]); return null; }
-  if (!pairs.length) { setStatus('Kompokkhe ekta "vul => shothik" line likhun.'); return null; }
+  if (bad.length) { setStatus('This line has no "=>": ' + bad[0]); return null; }
+  if (!pairs.length) { setStatus('Write at least one "wrong => correct" line.'); return null; }
   const folders = selectedFolders();
   for (const s of $('extra').value.split(',')) { const f = fid(s); if (f) folders.push({id: f, path: '(extra) ' + f}); }
-  if (!folders.length) { setStatus('Novel list load kore kompokkhe ekta folder tick korun (ba extra folder din).'); return null; }
+  if (!folders.length) { setStatus('Load the novel list and tick at least one folder (or add an extra folder).'); return null; }
   if (!token) await login();
-  setStatus('File khujchi...');
+  setStatus('Finding files...');
   const map = new Map();
   const rec = $('rec').checked;
   for (const fl of folders) for (const d of await listDocs(fl.id, rec)) map.set(d.id, d);
@@ -581,18 +581,18 @@ async function scan() {
       if (n === null) { noNum++; return false; }
       return (from === null || n >= from) && (to === null || n <= to);
     });
-    rangeInfo = `Range ${from === null ? '..' : from} - ${to === null ? '..' : to}: ${docs.length} ta doc` +
+    rangeInfo = `Range ${from === null ? '..' : from} - ${to === null ? '..' : to}: ${docs.length} docs` +
       (docs.length ? ` (${docs[0].name} ... ${docs[docs.length - 1].name})` : '') +
-      (noNum ? `; ${noNum} ta file e chapter number paoa jayni, tai bad` : '');
+      (noNum ? `; ${noNum} files skipped (no chapter number found)` : '');
   }
-  if (!docs.length) { setStatus(rangeInfo || 'Kono doc paini (folder, range ba nam filter check korun).'); return null; }
+  if (!docs.length) { setStatus(rangeInfo || 'No docs found (check the folder, range or name filter).'); return null; }
   const matchCase = $('c').checked;
   const res = pairs.map(p => new RegExp(escapeRegExp(p.find), matchCase ? 'g' : 'gi'));
   const results = [];
   const totals = pairs.map(() => 0), fileCounts = pairs.map(() => 0);
   let totalMatches = 0;
   for (let i = 0; i < docs.length; i++) {
-    if (stopFlag) { setStatus('Thamano hoyeche.'); return null; }
+    if (stopFlag) { setStatus('Stopped.'); return null; }
     setStatus(`Scan: ${i + 1}/${docs.length}`); progress(i + 1, docs.length);
     const d = await api(`https://docs.googleapis.com/v1/documents/${docs[i].id}?fields=revisionId,body`);
     const paras = [];
@@ -648,8 +648,8 @@ function buildMatch(m, pair, mode, multi) {
   }
   if (multi) { const t = el('span', `[${m.k + 1}]`); t.className = 'tag'; wrap.append(t); }
   const {pre, term, post} = ctxParts(m);
-  wrap.append(pre, el('del', term), el('ins', pair.repl || '(muche jabe)'), post);
-  if (mode === 'review' && !m.ok) { const w = el('div', 'Eta jotil jaygay (formatting/image majhkhane), tai alada select kora jabe na. "Shob replace" diye hobe.'); w.className = 'warn'; wrap.append(w); }
+  wrap.append(pre, el('del', term), el('ins', pair.repl || '(deleted)'), post);
+  if (mode === 'review' && !m.ok) { const w = el('div', 'Complex spot (formatting or an image in the middle), so it cannot be selected on its own. Use "Replace all" for it.'); w.className = 'warn'; wrap.append(w); }
   return wrap;
 }
 
@@ -688,7 +688,7 @@ function updateSelInfo() {
   if (!lastScan) return;
   let sel = 0, tot = 0;
   for (const f of lastScan.results) for (const m of f.matches) { if (m.ok) tot++; if (m.sel && m.ok) sel++; }
-  $('selinfo').textContent = `Select kora: ${sel} / ${tot} ta match (tick uthale oi match replace hobe na)`;
+  $('selinfo').textContent = `Selected: ${sel} / ${tot} matches (unticked matches will not be replaced)`;
   syncFileBoxes();
 }
 
@@ -705,13 +705,13 @@ function selAll(v) { eachMatch(m => setSel(m, v)); updateSelInfo(); }
 function selInvert() { eachMatch(m => setSel(m, !m.sel)); updateSelInfo(); }
 function selPair(mode) {
   const k = parseInt($('pairSel').value, 10);
-  if (isNaN(k)) return setStatus('Age Preview chalan.');
+  if (isNaN(k)) return setStatus('Run Preview first.');
   eachMatch(m => { if (mode === 'only') setSel(m, m.k === k); else if (m.k === k) setSel(m, false); });
   updateSelInfo();
 }
 function selLine(mode) {
   const q = $('lineQ').value.trim().toLowerCase();
-  if (!q) return setStatus('Line e kon shobdo thakle seta likhun.');
+  if (!q) return setStatus('Enter the text to look for in lines.');
   let hit = 0;
   eachMatch(m => {
     const has = m.text.toLowerCase().includes(q);
@@ -720,7 +720,7 @@ function selLine(mode) {
     else if (has) setSel(m, mode === 'on');
   });
   updateSelInfo();
-  setStatus(`"${q}" ${hit} ta match er line e paoa gelo.`);
+  setStatus(`Found "${q}" in ${hit} matching lines.`);
 }
 function fillPairSel(r) {
   const sel = $('pairSel');
@@ -743,7 +743,7 @@ function switchAccount() {
   login('select_account').then(() => {
     $('list').textContent = '';
     updateFolderSel();
-    setStatus('Notun account e login hoyeche. Novel list abar load korun.');
+    setStatus('Signed in with the new account. Reload the novel list.');
   }).catch(e => setStatus('Error: ' + e.message));
 }
 function logout() {
@@ -751,7 +751,7 @@ function logout() {
   token = null;
   $('list').textContent = '';
   updateFolderSel();
-  setStatus('Logout hoyeche.');
+  setStatus('Signed out.');
 }
 
 function showSummary(head, rows) {
@@ -766,19 +766,19 @@ function showSummary(head, rows) {
 function buildReport(r, label, rows, note) {
   const L = [];
   L.push('Bulk Replace report');
-  L.push('Shomoy: ' + new Date().toLocaleString());
+  L.push('Time: ' + new Date().toLocaleString());
   L.push('Mode: ' + label);
-  L.push('Case match: ' + (r.matchCase ? 'hae' : 'na'));
+  L.push('Case match: ' + (r.matchCase ? 'yes' : 'no'));
   L.push('Folder: ' + r.folderNames.join(' | '));
-  L.push('Subfolder include: ' + (r.rec ? 'hae' : 'na') + (r.nf ? '; nam filter: ' + r.nf : ''));
+  L.push('Include subfolders: ' + (r.rec ? 'yes' : 'no') + (r.nf ? '; name filter: ' + r.nf : ''));
   if (r.rangeInfo) L.push(r.rangeInfo);
-  L.push(`Doc check: ${r.docs}, match thaka file: ${r.results.length}, match: ${r.totalMatches}`);
+  L.push(`Docs checked: ${r.docs}, files with matches: ${r.results.length}, matches: ${r.totalMatches}`);
   if (note) L.push(note);
   L.push('');
-  L.push('--- Pair');
+  L.push('--- Pairs');
   r.pairs.forEach((p, k) => L.push(`${k + 1}) ${p.find} => ${p.repl}` + (rows ? ' : ' + rows[k] : '')));
   L.push('');
-  L.push('--- File ar line  ([purano => notun])');
+  L.push('--- Files and lines  ([old => new])');
   for (const f of r.results) {
     L.push(`${f.name} (${f.matches.length}) https://docs.google.com/document/d/${f.id}/edit`);
     for (const m of f.matches) {
@@ -823,21 +823,21 @@ async function preview() {
     lastScan = r;
     fillPairSel(r);
     showSummary(
-      `Preview: ${r.docs} ta doc check, ${r.results.length} ta file e ${r.totalMatches} ta match. Ekhono kichu change hoyni.` +
+      `Preview: ${r.docs} docs checked, ${r.totalMatches} matches in ${r.results.length} files. Nothing has been changed yet.` +
       (r.rangeInfo ? '\n' + r.rangeInfo : ''),
-      r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl} : ${r.totals[k]} match, ${r.fileCounts[k]} file`)
+      r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl} : ${r.totals[k]} matches, ${r.fileCounts[k]} files`)
     );
     showResults(r, 'review');
     $('rv').hidden = !r.results.length;
     updateSelInfo();
-    finishUI(buildReport(r, 'Preview (kichu change hoyni)', r.pairs.map((p, k) => `${r.totals[k]} match, ${r.fileCounts[k]} file`), ''));
+    finishUI(buildReport(r, 'Preview (nothing changed)', r.pairs.map((p, k) => `${r.totals[k]} matches, ${r.fileCounts[k]} files`), ''));
   } catch (e) { setStatus('Error: ' + e.message); }
   finally { busy = false; releaseAwake(); }
 }
 
 async function applySelected() {
   if (busy) return;
-  if (!lastScan) return setStatus('Age Preview chalan.');
+  if (!lastScan) return setStatus('Run Preview first.');
   const r = lastScan;
   const jobs = [];
   for (const f of r.results) {
@@ -850,8 +850,8 @@ async function applySelected() {
     if (chosen.length) jobs.push({f, chosen});
   }
   const total = jobs.reduce((a, j) => a + j.chosen.length, 0);
-  if (!total) return setStatus('Kono match select kora nai.');
-  if (!confirm(`Folder: ${r.folderNames.join(' | ')}\n\n${total} ta tick kora match, ${jobs.length} ta file e replace korbo?\n(Tick uthano match gula bad jabe.)`)) return;
+  if (!total) return setStatus('No matches selected.');
+  if (!confirm(`Folder: ${r.folderNames.join(' | ')}\n\nReplace ${total} ticked matches in ${jobs.length} files?\n(Unticked matches will be skipped.)`)) return;
   busy = true; stopFlag = false;
   await keepAwake();
   const doneResults = [], failed = [];
@@ -875,22 +875,22 @@ async function applySelected() {
         chosen.forEach(m => applied[m.k]++);
         doneResults.push({...f, matches: chosen.slice().sort((x, y) => x.ds - y.ds)});
       } catch (e) {
-        failed.push(f.name + ' (doc scan er por change hoyeche ba error, abar Preview chalan)');
+        failed.push(f.name + ' (document changed after the scan, or an error occurred; run Preview again)');
       }
       await sleep(1100);
     }
     const doneTotal = applied.reduce((a, b) => a + b, 0);
     const r2 = {...r, results: doneResults, totalMatches: doneTotal};
-    const rows = r.pairs.map((p, k) => `${applied[k]} bar replace holo`);
+    const rows = r.pairs.map((p, k) => `replaced ${applied[k]} times`);
     showSummary(
-      (stopFlag ? 'Thamano hoyeche. ' : '') + `Sesh: ${doneResults.length} ta file e mot ${doneTotal} ta match replace hoyeche.` +
-      (failed.length ? `\n${failed.length} ta file hoyni: ` + failed.join('; ') : ''),
+      (stopFlag ? 'Stopped. ' : '') + `Done: ${doneTotal} matches replaced in ${doneResults.length} files.` +
+      (failed.length ? `\n${failed.length} files failed: ` + failed.join('; ') : ''),
       r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl} : ${rows[k]}`)
     );
     showResults(r2, 'done');
     $('rv').hidden = true;
     lastScan = null;
-    finishUI(buildReport(r2, 'Replace (select kora gula)', rows, failed.length ? 'Fail: ' + failed.join('; ') : ''));
+    finishUI(buildReport(r2, 'Replace (ticked matches)', rows, failed.length ? 'Failed: ' + failed.join('; ') : ''));
   } catch (e) { setStatus('Error: ' + e.message); }
   finally { busy = false; releaseAwake(); }
 }
@@ -903,24 +903,24 @@ async function replaceAll() {
     const r = await scan();
     if (!r) return;
     if (!r.results.length) {
-      showSummary(`${r.docs} ta doc check hoyeche, kono match paoa jayni.`, []);
+      showSummary(`${r.docs} docs checked, no matches found.`, []);
       finishUI('');
       return;
     }
     const short = r.pairs.some(p => p.find.length < 3);
-    const msg = `Folder: ${r.folderNames.join(' | ')}\n\n${r.rangeInfo ? r.rangeInfo + '\n\n' : ''}${r.results.length} ta file e ${r.totalMatches} ta match, ${r.pairs.length} ta pair.` +
-      (short ? '\n\nShotorko: kichu term onek chhoto, onno jaygay-o change hote pare.' : '') +
-      (r.pairs.length > 1 ? '\n\nPair gulo upor theke nich porjonto ek ek kore replace hoy.' : '') +
-      '\n\nSHOB match replace korbo? (Line dekhe bachte chaile Preview ar review use korun.)';
+    const msg = `Folder: ${r.folderNames.join(' | ')}\n\n${r.rangeInfo ? r.rangeInfo + '\n\n' : ''}${r.totalMatches} matches in ${r.results.length} files, ${r.pairs.length} pairs.` +
+      (short ? '\n\nWarning: some terms are very short and may also change other words.' : '') +
+      (r.pairs.length > 1 ? '\n\nPairs are applied one by one from top to bottom.' : '') +
+      '\n\nReplace ALL matches? (To pick matches one by one, use Preview and review.)';
     if (!confirm(msg)) {
       lastScan = r;
       fillPairSel(r);
-      showSummary(`Batil. ${r.results.length} ta file e ${r.totalMatches} ta match chilo, kichu change hoyni. Chaile niche review kore select kore replace korte paren.`,
-        r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl} : ${r.totals[k]} match`));
+      showSummary(`Cancelled. Found ${r.totalMatches} matches in ${r.results.length} files; nothing was changed. You can review below and replace only the ones you select.`,
+        r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl} : ${r.totals[k]} matches`));
       showResults(r, 'review');
       $('rv').hidden = false;
       updateSelInfo();
-      finishUI(buildReport(r, 'Preview (Shob replace batil)', r.pairs.map((p, k) => `${r.totals[k]} match`), ''));
+      finishUI(buildReport(r, 'Preview (Replace all cancelled)', r.pairs.map((p, k) => `${r.totals[k]} matches`), ''));
       return;
     }
     const applied = r.pairs.map(() => 0), appliedFiles = r.pairs.map(() => 0);
@@ -945,14 +945,14 @@ async function replaceAll() {
     const stopped = done < r.results.length;
     r.results = r.results.slice(0, done);
     const total = applied.reduce((a, b) => a + b, 0);
-    const rows = r.pairs.map((p, k) => `${applied[k]} bar, ${appliedFiles[k]} file e replace holo`);
+    const rows = r.pairs.map((p, k) => `replaced ${applied[k]} times in ${appliedFiles[k]} files`);
     showSummary(
-      (stopped ? `Thamano hoyeche (${done} ta file hoyeche). ` : '') +
-      `Replace sesh: mot ${total} bar replace hoyeche (scan e peyechilam ${r.totalMatches} ta match).`,
+      (stopped ? `Stopped (${done} files done). ` : '') +
+      `Replace finished: ${total} replacements made (the scan found ${r.totalMatches} matches).`,
       r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl} : ${rows[k]}`)
     );
     showResults(r, 'done');
-    finishUI(buildReport(r, 'Replace (shob)', rows, stopped ? 'Majhpothe thamano hoyechilo.' : ''));
+    finishUI(buildReport(r, 'Replace (all)', rows, stopped ? 'Stopped partway.' : ''));
   } catch (e) { setStatus('Error: ' + e.message); }
   finally { busy = false; releaseAwake(); }
 }
