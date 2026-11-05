@@ -8,32 +8,35 @@
   :root{--bg:#fff;--fg:#111;--mut:#555;--card:#f4f4f4;--bd:#ccc;--btn:#ececec}
   @media (prefers-color-scheme:dark){:root{--bg:#121212;--fg:#eee;--mut:#aaa;--card:#1e1e1e;--bd:#444;--btn:#2a2a2a}}
   body{background:var(--bg);color:var(--fg);font-family:sans-serif;padding:16px;max-width:720px;margin:auto}
-  input[type=text],textarea,select,button{width:100%;padding:12px;margin-bottom:10px;font-size:16px;box-sizing:border-box;background:var(--btn);color:var(--fg);border:1px solid var(--bd);border-radius:8px}
+  input[type=text],input[type=number],textarea,select,button{width:100%;padding:12px;margin-bottom:10px;font-size:16px;box-sizing:border-box;background:var(--btn);color:var(--fg);border:1px solid var(--bd);border-radius:8px}
   textarea{min-height:120px;font-family:inherit}
-  details{border:1px solid var(--bd);border-radius:8px;padding:8px 12px;margin-bottom:12px}
+  details.box{border:1px solid var(--bd);border-radius:8px;padding:8px 12px;margin-bottom:12px}
   summary{padding:6px 0;cursor:pointer}
   .row{display:flex;gap:8px}
   .row>*{flex:1}
+  .opt{display:block;padding:6px 0}
+  .opt input{width:auto;margin-right:8px}
+  .hint{color:var(--mut);font-size:13px;margin:0 0 10px}
   .node{margin:0}
   .kids{margin-left:16px;border-left:1px solid var(--bd);padding-left:6px;font-size:15px}
   .nrow{display:flex;align-items:center}
   .nrow label{display:flex;align-items:center;flex:1;padding:7px 0;word-break:break-word}
   .nrow input{width:auto;margin:0 8px 0 0}
   .tg{display:inline-block;width:36px;text-align:center;cursor:pointer;user-select:none;color:var(--mut);font-size:18px}
-  #selbox{font-size:13px;color:var(--mut);margin:6px 0 10px;word-break:break-word}
-  .opt{display:block;padding:6px 0}
-  .opt input{width:auto;margin-right:8px}
-  .hint{color:var(--mut);font-size:13px;margin:0 0 10px}
+  #selbox,#selinfo{font-size:13px;color:var(--mut);margin:6px 0 10px;word-break:break-word}
   progress{width:100%;height:10px}
   #log{color:var(--mut);font-size:14px;white-space:pre-wrap;min-height:18px}
   #sum{margin:10px 0}
   #sum .head{font-weight:bold;margin-bottom:6px}
   #sum .pr{font-size:14px;padding:2px 0;word-break:break-word}
-  .file{margin-top:14px;padding-top:8px;border-top:1px solid var(--bd)}
-  .file a{font-weight:bold;word-break:break-word;color:inherit}
-  .ln{margin:6px 0;padding:6px;background:var(--card);border-radius:6px;word-break:break-word;font-size:14px}
+  details.file{margin-top:10px;padding-top:6px;border-top:1px solid var(--bd)}
+  details.file>summary{font-weight:bold;word-break:break-word}
+  details.file>summary input{width:auto;margin:0 8px 0 0;vertical-align:middle}
+  details.file>summary a{color:inherit}
+  .ln{margin:6px 0;padding:6px;background:var(--card);border-radius:6px;word-break:break-word;font-size:14px;line-height:1.5}
+  .ln input{width:auto;margin:0 8px 0 0;vertical-align:middle}
   .tag{font-size:12px;color:var(--mut);margin-right:4px}
-  mark{background:#ffe066;color:#000}
+  .warn{font-size:12px;color:var(--mut)}
   del{background:#ffc9c9;color:#000}
   ins{background:#b2f2bb;color:#000;text-decoration:none}
 </style>
@@ -41,7 +44,7 @@
 <body>
 <h3>Bulk Replace</h3>
 
-<details>
+<details class="box">
   <summary>Settings (Client ID / My Work folder ID)</summary>
   <input type="text" id="cid" placeholder="Google OAuth Client ID">
   <input type="text" id="root" placeholder="My Work folder ID (ba folder link)">
@@ -52,13 +55,13 @@
 <button onclick="loadNovels()">Novel list load korun</button>
 <div id="list"></div>
 <div id="selbox">Kono folder select kora nai.</div>
-<p class="hint">▸ chap diye novel er subfolder khulun. Je folder tick korben shudhu sei folder (ar tar bhitorer subfolder) e replace hobe.</p>
+<p class="hint">▸ chap diye subfolder khulun. Je folder tick korben shudhu sei folder (ar tar bhitorer subfolder) e kaj hobe.</p>
 <input type="text" id="extra" placeholder="Extra folder ID/link (optional, comma diye)">
 
 <textarea id="pairs" placeholder="Ek line e ek pair:&#10;vul term => shothik term&#10;onno vul => onno shothik&#10;# ei rokom line ignore hobe"></textarea>
 <p class="hint">Format: <b>vul =&gt; shothik</b>. Shothik ongsho khali rakhle oi shobdo muche jabe.</p>
 
-<details>
+<details class="box">
   <summary>Glossary (novel-wise term list save)</summary>
   <input type="text" id="gname" placeholder="Glossary nam (jemon novel er nam)">
   <div class="row">
@@ -69,19 +72,37 @@
   <select id="gsel"></select>
 </details>
 
+<details class="box" open>
+  <summary>Chapter range / filter</summary>
+  <div class="row">
+    <input type="number" id="rfrom" placeholder="Chapter koto theke (jemon 10)" inputmode="numeric">
+    <input type="number" id="rto" placeholder="Chapter koto porjonto (jemon 50)" inputmode="numeric">
+  </div>
+  <input type="text" id="nfilter" placeholder="File nam filter (optional, jemon: Arc 2)">
+  <p class="hint">Range file er nam er chapter number (Chapter 12, Ch 12, ba prothom number) theke nei. Number na thakle oi file range e dhora hoy na. Dutoi khali rakhle shob chapter.</p>
+</details>
+
 <label class="opt"><input type="checkbox" id="c" checked> Case match</label>
 <label class="opt"><input type="checkbox" id="rec" checked> Tick kora folder er subfolder gulo-o include korun</label>
-<input type="text" id="nfilter" placeholder="File nam filter (optional, jemon: Chapter 1)">
 
 <div class="row">
-  <button onclick="preview()">Preview (change hobe na)</button>
-  <button onclick="replaceAll()">Replace</button>
+  <button onclick="preview()">Preview ar review</button>
+  <button onclick="replaceAll()">Shob replace</button>
 </div>
 <button onclick="stopFlag=true">Stop</button>
 <progress id="pg" value="0" max="1" hidden></progress>
 <div id="log"></div>
-<button id="exp" onclick="exportReport()" hidden>Report save korun (.txt)</button>
 <div id="sum"></div>
+
+<div id="rv" hidden>
+  <div id="selinfo"></div>
+  <div class="row">
+    <button onclick="selAll(true)">Shob select</button>
+    <button onclick="selAll(false)">Shob bad</button>
+  </div>
+  <button onclick="applySelected()"><b>Shudhu tick kora gula replace korun</b></button>
+</div>
+<button id="exp" onclick="exportReport()" hidden>Report save korun (.txt)</button>
 <div id="res"></div>
 
 <script>
@@ -102,7 +123,7 @@ const fid = s => { s = (s || '').trim(); const m = s.match(/folders\/([A-Za-z0-9
 
 let CLIENT_ID = store.get('cid', DEFAULTS.cid) || DEFAULTS.cid;
 let ROOT_ID = store.get('root', DEFAULTS.root) || DEFAULTS.root;
-let token = null, stopFlag = false, busy = false, lastReport = '', wl = null;
+let token = null, stopFlag = false, busy = false, lastReport = '', wl = null, lastScan = null;
 
 $('cid').value = CLIENT_ID;
 $('root').value = ROOT_ID;
@@ -202,20 +223,21 @@ async function loadNovels() {
 
 function toggleAll(el) {
   document.querySelectorAll('#list > .node > .nrow input.nv').forEach(cb => cb.checked = el.checked);
-  updateSel();
+  updateFolderSel();
 }
 
 function selectedFolders() {
   return [...document.querySelectorAll('.nv:checked')].map(cb => ({id: cb.value, path: cb.dataset.path}));
 }
 
-function updateSel() {
+function updateFolderSel() {
   const s = selectedFolders();
   $('selbox').textContent = s.length
     ? `Select kora ${s.length} ta folder: ` + s.map(x => x.path).join(' | ')
     : 'Kono folder select kora nai.';
 }
-$('list').addEventListener('change', updateSel);
+function updateSel() { updateFolderSel(); }
+$('list').addEventListener('change', updateFolderSel);
 
 async function listDocs(folder, recursive) {
   let docs = [], page = '';
@@ -285,16 +307,36 @@ function parsePairs() {
   return {pairs, bad};
 }
 
+function chNo(name) {
+  const m = name.match(/(?:chapter|chap|ch|episode|ep|অধ্যায়)[\s._#-]*(\d+)/i) || name.match(/(\d+)/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+/* paragraph text + map from text offset to document index */
 function collectParas(content, out) {
   for (const el of content || []) {
     if (el.paragraph) {
-      const t = (el.paragraph.elements || []).map(e => e.textRun ? e.textRun.content : '').join('').replace(/\n$/, '');
-      if (t) out.push(t);
+      let text = '';
+      const segs = [];
+      for (const e of el.paragraph.elements || []) {
+        if (e.textRun && e.textRun.content != null) {
+          const c = e.textRun.content;
+          segs.push({ds: e.startIndex || 0, off: text.length, len: c.length});
+          text += c;
+        }
+      }
+      if (text.endsWith('\n')) text = text.slice(0, -1);
+      if (text) out.push({text, segs});
     } else if (el.table) {
       for (const row of el.table.tableRows || [])
         for (const cell of row.tableCells || []) collectParas(cell.content, out);
     }
   }
+}
+
+function toDoc(segs, off) {
+  for (const s of segs) if (off >= s.off && off < s.off + s.len) return s.ds + (off - s.off);
+  return null;
 }
 
 function progress(i, n) {
@@ -307,15 +349,32 @@ async function scan() {
   if (!pairs.length) { setStatus('Kompokkhe ekta "vul => shothik" line likhun.'); return null; }
   const folders = selectedFolders();
   for (const s of $('extra').value.split(',')) { const f = fid(s); if (f) folders.push({id: f, path: '(extra) ' + f}); }
-  if (!folders.length) { setStatus('Novel list load kore kompokkhe ekta novel tick korun (ba extra folder din).'); return null; }
+  if (!folders.length) { setStatus('Novel list load kore kompokkhe ekta folder tick korun (ba extra folder din).'); return null; }
   if (!token) await login();
   setStatus('File khujchi...');
   const map = new Map();
   const rec = $('rec').checked;
   for (const fl of folders) for (const d of await listDocs(fl.id, rec)) map.set(d.id, d);
   const nf = $('nfilter').value.trim().toLowerCase();
-  const docs = [...map.values()].filter(d => !nf || d.name.toLowerCase().includes(nf));
-  if (!docs.length) { setStatus('Kono doc paini (folder ba nam filter check korun).'); return null; }
+  let docs = [...map.values()].filter(d => !nf || d.name.toLowerCase().includes(nf));
+  const fromV = $('rfrom').value.trim(), toV = $('rto').value.trim();
+  const from = fromV === '' ? null : parseInt(fromV, 10), to = toV === '' ? null : parseInt(toV, 10);
+  let rangeInfo = '', noNum = 0;
+  docs.sort((a, b) => {
+    const x = chNo(a.name), y = chNo(b.name);
+    return (x === null ? 1e9 : x) - (y === null ? 1e9 : y) || a.name.localeCompare(b.name, undefined, {numeric: true});
+  });
+  if (from !== null || to !== null) {
+    docs = docs.filter(d => {
+      const n = chNo(d.name);
+      if (n === null) { noNum++; return false; }
+      return (from === null || n >= from) && (to === null || n <= to);
+    });
+    rangeInfo = `Range ${from === null ? '..' : from} - ${to === null ? '..' : to}: ${docs.length} ta doc` +
+      (docs.length ? ` (${docs[0].name} ... ${docs[docs.length - 1].name})` : '') +
+      (noNum ? `; ${noNum} ta file e chapter number paoa jayni, tai bad` : '');
+  }
+  if (!docs.length) { setStatus(rangeInfo || 'Kono doc paini (folder, range ba nam filter check korun).'); return null; }
   const matchCase = $('c').checked;
   const res = pairs.map(p => new RegExp(escapeRegExp(p.find), matchCase ? 'g' : 'gi'));
   const results = [];
@@ -324,121 +383,140 @@ async function scan() {
   for (let i = 0; i < docs.length; i++) {
     if (stopFlag) { setStatus('Thamano hoyeche.'); return null; }
     setStatus(`Scan: ${i + 1}/${docs.length}`); progress(i + 1, docs.length);
-    const d = await api(`https://docs.googleapis.com/v1/documents/${docs[i].id}?fields=body`);
+    const d = await api(`https://docs.googleapis.com/v1/documents/${docs[i].id}?fields=revisionId,body`);
     const paras = [];
     collectParas(d.body && d.body.content, paras);
-    const counts = pairs.map(() => 0), lines = [];
+    const counts = pairs.map(() => 0), matches = [];
     for (const p of paras) {
       for (let k = 0; k < pairs.length; k++) {
-        const m = p.match(res[k]);
-        if (m) { counts[k] += m.length; lines.push({k, text: p}); }
+        const re = res[k];
+        re.lastIndex = 0;
+        let m;
+        while ((m = re.exec(p.text))) {
+          const a = m.index, b = a + m[0].length;
+          const ds = toDoc(p.segs, a), last = toDoc(p.segs, b - 1);
+          const de = last === null ? null : last + 1;
+          const ok = ds !== null && de !== null && de - ds === b - a;
+          matches.push({k, text: p.text, a, b, ds, de, ok, sel: ok});
+          counts[k]++;
+          if (!m[0].length) re.lastIndex++;
+        }
       }
     }
-    const n = counts.reduce((a, b) => a + b, 0);
+    const n = matches.length;
     if (n) {
-      results.push({id: docs[i].id, name: docs[i].name, n, counts, lines});
+      results.push({id: docs[i].id, name: docs[i].name, rev: d.revisionId, n, counts, matches});
       totalMatches += n;
       counts.forEach((c, k) => { totals[k] += c; if (c) fileCounts[k]++; });
     }
     await sleep(400);
   }
-  return {docs: docs.length, results, totalMatches, pairs, totals, fileCounts, matchCase, folderNames: folders.map(f => f.path), rec, nf};
+  return {docs: docs.length, results, totalMatches, pairs, totals, fileCounts, matchCase,
+    folderNames: folders.map(f => f.path), rec, nf, rangeInfo};
 }
 
 /* ---------- rendering ---------- */
-function hl(t, re, tag, rep) {
-  const frag = document.createDocumentFragment();
-  const r = new RegExp(re.source, re.flags);
-  let last = 0, m;
-  while ((m = r.exec(t))) {
-    frag.append(t.slice(last, m.index));
-    const el = document.createElement(tag);
-    el.textContent = rep === null ? m[0] : rep;
-    frag.append(el);
-    last = m.index + m[0].length;
-  }
-  frag.append(t.slice(last));
-  return frag;
+function el(tag, text) { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; return e; }
+
+function ctxParts(m) {
+  const pre = (m.a > 70 ? '…' : '') + m.text.slice(Math.max(0, m.a - 70), m.a);
+  const term = m.text.slice(m.a, m.b);
+  const post = m.text.slice(m.b, m.b + 70) + (m.b + 70 < m.text.length ? '…' : '');
+  return {pre, term, post};
 }
 
-function buildLine(text, re, repl, mode, tagText) {
-  let t = text, pre = '', post = '';
-  if (text.length > 200) {
-    const first = Math.max(0, text.search(re));
-    const s = Math.max(0, first - 80), e = Math.min(text.length, first + 120);
-    t = text.slice(s, e);
-    if (s > 0) pre = '…';
-    if (e < text.length) post = '…';
-  }
-  const wrap = document.createElement('div');
+function buildMatch(m, pair, mode, multi) {
+  const wrap = el('div');
   wrap.className = 'ln';
-  const tag = document.createElement('span');
-  tag.className = 'tag'; tag.textContent = tagText;
-  if (mode === 'preview') {
-    wrap.append(tag, pre, hl(t, re, 'mark', null), post);
-  } else {
-    const a = document.createElement('div');
-    a.append(tag, 'Purano: ', pre, hl(t, re, 'del', null), post);
-    const b = document.createElement('div');
-    b.append('Notun: ', pre, hl(t, re, 'ins', repl), post);
-    wrap.append(a, b);
+  if (mode === 'review') {
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = m.sel; cb.disabled = !m.ok;
+    cb.onchange = () => { m.sel = cb.checked; updateSelInfo(); };
+    m.cb = cb;
+    wrap.append(cb);
   }
+  if (multi) { const t = el('span', `[${m.k + 1}]`); t.className = 'tag'; wrap.append(t); }
+  const {pre, term, post} = ctxParts(m);
+  wrap.append(pre, el('del', term), el('ins', pair.repl || '(muche jabe)'), post);
+  if (mode === 'review' && !m.ok) { const w = el('div', 'Eta jotil jaygay (formatting/image majhkhane), tai alada select kora jabe na. "Shob replace" diye hobe.'); w.className = 'warn'; wrap.append(w); }
   return wrap;
 }
 
 function showResults(r, mode) {
   const box = $('res');
   box.textContent = '';
-  const res = r.pairs.map(p => new RegExp(escapeRegExp(p.find), r.matchCase ? 'g' : 'gi'));
+  const multi = r.pairs.length > 1;
   for (const f of r.results) {
-    const div = document.createElement('div');
-    div.className = 'file';
-    const a = document.createElement('a');
+    const d = document.createElement('details');
+    d.className = 'file';
+    d.open = r.totalMatches <= 150;
+    const s = document.createElement('summary');
+    if (mode === 'review') {
+      const fc = document.createElement('input');
+      fc.type = 'checkbox'; fc.checked = true;
+      fc.onclick = e => e.stopPropagation();
+      fc.onchange = () => {
+        for (const m of f.matches) if (m.ok) { m.sel = fc.checked; if (m.cb) m.cb.checked = fc.checked; }
+        updateSelInfo();
+      };
+      s.append(fc);
+    }
+    const a = el('a', `${f.name} (${f.matches.length})`);
     a.href = 'https://docs.google.com/document/d/' + f.id + '/edit';
     a.target = '_blank'; a.rel = 'noopener';
-    a.textContent = `${f.name} (${f.n} ta match)`;
-    div.append(a);
-    for (const ln of f.lines)
-      div.append(buildLine(ln.text, res[ln.k], r.pairs[ln.k].repl, mode, r.pairs.length > 1 ? `[${ln.k + 1}]` : ''));
-    box.append(div);
+    a.onclick = e => e.stopPropagation();
+    s.append(a);
+    d.append(s);
+    for (const m of f.matches) d.append(buildMatch(m, r.pairs[m.k], mode, multi));
+    box.append(d);
   }
+}
+
+function updateSelInfo() {
+  if (!lastScan) return;
+  let sel = 0, tot = 0;
+  for (const f of lastScan.results) for (const m of f.matches) { if (m.ok) tot++; if (m.sel && m.ok) sel++; }
+  $('selinfo').textContent = `Select kora: ${sel} / ${tot} ta match (tick uthale oi match replace hobe na)`;
+}
+
+function selAll(v) {
+  if (!lastScan) return;
+  for (const f of lastScan.results) for (const m of f.matches) if (m.ok) { m.sel = v; if (m.cb) m.cb.checked = v; }
+  document.querySelectorAll('details.file > summary > input').forEach(c => c.checked = v);
+  updateSelInfo();
 }
 
 function showSummary(head, rows) {
   const s = $('sum');
   s.textContent = '';
-  const h = document.createElement('div');
-  h.className = 'head'; h.textContent = head;
+  const h = el('div', head);
+  h.className = 'head';
   s.append(h);
-  for (const r of rows) {
-    const d = document.createElement('div');
-    d.className = 'pr'; d.textContent = r;
-    s.append(d);
-  }
+  for (const r of rows) { const d = el('div', r); d.className = 'pr'; s.append(d); }
 }
 
-function buildReport(r, mode, applied, appliedFiles, note) {
+function buildReport(r, label, rows, note) {
   const L = [];
   L.push('Bulk Replace report');
   L.push('Shomoy: ' + new Date().toLocaleString());
-  L.push('Mode: ' + (mode === 'preview' ? 'Preview (kichu change hoyni)' : 'Replace'));
+  L.push('Mode: ' + label);
   L.push('Case match: ' + (r.matchCase ? 'hae' : 'na'));
   L.push('Folder: ' + r.folderNames.join(' | '));
   L.push('Subfolder include: ' + (r.rec ? 'hae' : 'na') + (r.nf ? '; nam filter: ' + r.nf : ''));
-  L.push(`Doc check: ${r.docs}, match thaka file: ${r.results.length}, scan e mot match: ${r.totalMatches}`);
+  if (r.rangeInfo) L.push(r.rangeInfo);
+  L.push(`Doc check: ${r.docs}, match thaka file: ${r.results.length}, match: ${r.totalMatches}`);
   if (note) L.push(note);
   L.push('');
   L.push('--- Pair');
-  r.pairs.forEach((p, k) => {
-    let s = `${k + 1}) ${p.find} => ${p.repl} : scan e ${r.totals[k]} match, ${r.fileCounts[k]} file`;
-    if (applied) s += `; replace holo ${applied[k]} bar, ${appliedFiles[k]} file e`;
-    L.push(s);
-  });
+  r.pairs.forEach((p, k) => L.push(`${k + 1}) ${p.find} => ${p.repl}` + (rows ? ' : ' + rows[k] : '')));
   L.push('');
-  L.push('--- File ar line');
+  L.push('--- File ar line  ([purano => notun])');
   for (const f of r.results) {
-    L.push(`${f.name} (${f.n}) https://docs.google.com/document/d/${f.id}/edit`);
-    for (const ln of f.lines) L.push(`  [${ln.k + 1}] ${ln.text}`);
+    L.push(`${f.name} (${f.matches.length}) https://docs.google.com/document/d/${f.id}/edit`);
+    for (const m of f.matches) {
+      const {pre, term, post} = ctxParts(m);
+      L.push(`  [${m.k + 1}] ${pre}[${term} => ${r.pairs[m.k].repl}]${post}`);
+    }
   }
   return L.join('\n');
 }
@@ -462,7 +540,8 @@ function exportReport() {
 
 function resetOut() {
   $('sum').textContent = ''; $('res').textContent = '';
-  $('exp').hidden = true; lastReport = '';
+  $('exp').hidden = true; $('rv').hidden = true;
+  lastReport = ''; lastScan = null;
 }
 
 /* ---------- actions ---------- */
@@ -473,12 +552,76 @@ async function preview() {
   try {
     const r = await scan();
     if (!r) return;
+    lastScan = r;
     showSummary(
-      `Preview: ${r.docs} ta doc check, ${r.results.length} ta file e ${r.totalMatches} ta match. Kichu change hoyni.`,
+      `Preview: ${r.docs} ta doc check, ${r.results.length} ta file e ${r.totalMatches} ta match. Ekhono kichu change hoyni.` +
+      (r.rangeInfo ? '\n' + r.rangeInfo : ''),
       r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl} : ${r.totals[k]} match, ${r.fileCounts[k]} file`)
     );
-    showResults(r, 'preview');
-    finishUI(buildReport(r, 'preview', null, null, ''));
+    showResults(r, 'review');
+    $('rv').hidden = !r.results.length;
+    updateSelInfo();
+    finishUI(buildReport(r, 'Preview (kichu change hoyni)', r.pairs.map((p, k) => `${r.totals[k]} match, ${r.fileCounts[k]} file`), ''));
+  } catch (e) { setStatus('Error: ' + e.message); }
+  finally { busy = false; releaseAwake(); }
+}
+
+async function applySelected() {
+  if (busy) return;
+  if (!lastScan) return setStatus('Age Preview chalan.');
+  const r = lastScan;
+  const jobs = [];
+  for (const f of r.results) {
+    const ms = f.matches.filter(m => m.sel && m.ok).sort((x, y) => y.ds - x.ds);
+    const chosen = [];
+    for (const m of ms) {
+      if (chosen.length && m.de > chosen[chosen.length - 1].ds) continue; /* overlap */
+      chosen.push(m);
+    }
+    if (chosen.length) jobs.push({f, chosen});
+  }
+  const total = jobs.reduce((a, j) => a + j.chosen.length, 0);
+  if (!total) return setStatus('Kono match select kora nai.');
+  if (!confirm(`Folder: ${r.folderNames.join(' | ')}\n\n${total} ta tick kora match, ${jobs.length} ta file e replace korbo?\n(Tick uthano match gula bad jabe.)`)) return;
+  busy = true; stopFlag = false;
+  await keepAwake();
+  const doneResults = [], failed = [];
+  const applied = r.pairs.map(() => 0);
+  try {
+    for (let i = 0; i < jobs.length; i++) {
+      if (stopFlag) break;
+      const {f, chosen} = jobs[i];
+      setStatus(`Replace: ${i + 1}/${jobs.length}`); progress(i + 1, jobs.length);
+      const requests = [];
+      for (const m of chosen) {
+        const repl = r.pairs[m.k].repl;
+        if (repl) requests.push({insertText: {location: {index: m.de}, text: repl}});
+        requests.push({deleteContentRange: {range: {startIndex: m.ds, endIndex: m.de}}});
+      }
+      try {
+        await api(`https://docs.googleapis.com/v1/documents/${f.id}:batchUpdate`, {
+          method: 'POST',
+          body: JSON.stringify({requests, writeControl: {requiredRevisionId: f.rev}})
+        });
+        chosen.forEach(m => applied[m.k]++);
+        doneResults.push({...f, matches: chosen.slice().sort((x, y) => x.ds - y.ds)});
+      } catch (e) {
+        failed.push(f.name + ' (doc scan er por change hoyeche ba error, abar Preview chalan)');
+      }
+      await sleep(1100);
+    }
+    const doneTotal = applied.reduce((a, b) => a + b, 0);
+    const r2 = {...r, results: doneResults, totalMatches: doneTotal};
+    const rows = r.pairs.map((p, k) => `${applied[k]} bar replace holo`);
+    showSummary(
+      (stopFlag ? 'Thamano hoyeche. ' : '') + `Sesh: ${doneResults.length} ta file e mot ${doneTotal} ta match replace hoyeche.` +
+      (failed.length ? `\n${failed.length} ta file hoyni: ` + failed.join('; ') : ''),
+      r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl} : ${rows[k]}`)
+    );
+    showResults(r2, 'done');
+    $('rv').hidden = true;
+    lastScan = null;
+    finishUI(buildReport(r2, 'Replace (select kora gula)', rows, failed.length ? 'Fail: ' + failed.join('; ') : ''));
   } catch (e) { setStatus('Error: ' + e.message); }
   finally { busy = false; releaseAwake(); }
 }
@@ -499,12 +642,15 @@ async function replaceAll() {
     const msg = `Folder: ${r.folderNames.join(' | ')}\n\n${r.results.length} ta file e ${r.totalMatches} ta match, ${r.pairs.length} ta pair.` +
       (short ? '\n\nShotorko: kichu term onek chhoto, onno jaygay-o change hote pare.' : '') +
       (r.pairs.length > 1 ? '\n\nPair gulo upor theke nich porjonto ek ek kore replace hoy.' : '') +
-      '\n\nReplace korbo?';
+      '\n\nSHOB match replace korbo? (Line dekhe bachte chaile Preview ar review use korun.)';
     if (!confirm(msg)) {
-      showSummary(`Batil. ${r.results.length} ta file e ${r.totalMatches} ta match chilo, kichu change hoyni.`,
+      lastScan = r;
+      showSummary(`Batil. ${r.results.length} ta file e ${r.totalMatches} ta match chilo, kichu change hoyni. Chaile niche review kore select kore replace korte paren.`,
         r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl} : ${r.totals[k]} match`));
-      showResults(r, 'preview');
-      finishUI(buildReport(r, 'preview', null, null, 'Replace batil kora hoyechilo.'));
+      showResults(r, 'review');
+      $('rv').hidden = false;
+      updateSelInfo();
+      finishUI(buildReport(r, 'Preview (Shob replace batil)', r.pairs.map((p, k) => `${r.totals[k]} match`), ''));
       return;
     }
     const applied = r.pairs.map(() => 0), appliedFiles = r.pairs.map(() => 0);
@@ -529,13 +675,14 @@ async function replaceAll() {
     const stopped = done < r.results.length;
     r.results = r.results.slice(0, done);
     const total = applied.reduce((a, b) => a + b, 0);
+    const rows = r.pairs.map((p, k) => `${applied[k]} bar, ${appliedFiles[k]} file e replace holo`);
     showSummary(
       (stopped ? `Thamano hoyeche (${done} ta file hoyeche). ` : '') +
       `Replace sesh: mot ${total} bar replace hoyeche (scan e peyechilam ${r.totalMatches} ta match).`,
-      r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl} : ${applied[k]} bar, ${appliedFiles[k]} file e`)
+      r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl} : ${rows[k]}`)
     );
-    showResults(r, 'replace');
-    finishUI(buildReport(r, 'replace', applied, appliedFiles, stopped ? 'Majhpothe thamano hoyechilo.' : ''));
+    showResults(r, 'done');
+    finishUI(buildReport(r, 'Replace (shob)', rows, stopped ? 'Majhpothe thamano hoyechilo.' : ''));
   } catch (e) { setStatus('Error: ' + e.message); }
   finally { busy = false; releaseAwake(); }
 }
