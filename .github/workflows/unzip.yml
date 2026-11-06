@@ -1,0 +1,65 @@
+name: Auto unzip
+
+# Repo-r root-e kono .zip upload/push korle ei workflow chalbe
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - '*.zip'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-unzip
+  cancel-in-progress: false
+
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unzip and replace files
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          zips=(*.zip)
+          if [ ${#zips[@]} -eq 0 ]; then
+            echo "No zip found, nothing to do."
+            exit 0
+          fi
+          for z in "${zips[@]}"; do
+            echo "Processing: $z"
+            tmp=$(mktemp -d)
+            unzip -q -o "$z" -d "$tmp"
+            rm -rf "$tmp/__MACOSX"
+            find "$tmp" -name '.DS_Store' -delete
+
+            # Zip-er bhitore ekta wrapper folder thakle (jemon bulk-replace-main/) seta bad dao
+            src="$tmp"
+            if [ "$(find "$tmp" -mindepth 1 -maxdepth 1 | wc -l)" -eq 1 ]; then
+              only="$(find "$tmp" -mindepth 1 -maxdepth 1)"
+              if [ -d "$only" ]; then src="$only"; fi
+            fi
+
+            # Root-e copy (purono file overwrite hobe). .git, .github ar zip file skip.
+            tar -C "$src" --exclude='./.git' --exclude='./.github' --exclude='*.zip' -cf - . | tar -xf -
+
+            # Kaj shesh, zip file muche felo
+            rm -f -- "$z"
+          done
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Auto-unzip: update files from uploaded zip"
+          git pull --rebase
+          git push
