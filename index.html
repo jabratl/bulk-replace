@@ -90,6 +90,8 @@ details.box{border:1px solid var(--bd);border-radius:12px;background:var(--sf2)}
 .hor{display:flex;flex-wrap:wrap;gap:8px;padding:8px 0;border-bottom:1px solid var(--bd)}
 .hor>*{flex:1 1 110px;min-width:0}
 .hor:last-child{border-bottom:0}
+#auList:empty::before{content:"Run the audit to see counts per term."}
+.exr .au{display:block;font-size:13px;color:var(--mut)}
 div.smbox{border:1px solid var(--bd);border-radius:12px;background:var(--sf2);padding:10px 12px}
 details.box>summary{padding:10px 12px;min-height:44px;cursor:pointer;font-weight:600;font-size:14.5px;display:flex;align-items:center}
 details.box>.bd{padding:4px 12px 12px}
@@ -159,7 +161,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
 <body>
 <div class="app">
 <header class="top">
-  <div class="t"><h1>Bulk Replace<span class="ver">v5.5</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
+  <div class="t"><h1>Bulk Replace<span class="ver">v5.6</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
   <button id="hbtn" onclick="openHistory()" title="History of replace runs">History</button>
   <button class="icon" id="thm" onclick="cycleTheme()" aria-label="Change theme" title="Change theme">Auto</button>
 </header>
@@ -428,6 +430,21 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
       <small>Fast is quicker on 100+ chapters. If Google's limit is hit, the scan pauses 30 seconds and continues by itself.</small>
     </label>
     <button onclick="countDocs()">Count docs and estimate time</button>
+    <details class="box" id="auBox">
+      <summary>Glossary audit (count every term, nothing is changed)</summary>
+      <div class="bd">
+        <p class="hint">Counts how often each pair of Step 2 occurs in the files chosen above (same folders, range, filter and matching options as Preview). Tap a term to list its matches in Find only. Stop keeps the partial result.</p>
+        <button class="pri" id="auRun" onclick="glossaryAudit()">Run audit</button>
+        <p class="hint" id="auInfo" role="status"></p>
+        <select id="auSort" aria-label="Sort terms"><option value="pair">Sort: pair order</option><option value="most">Sort: most matches first</option><option value="zero">Sort: not found first</option></select>
+        <div class="exl" id="auList"></div>
+        <div class="exl" id="auNov" hidden></div>
+        <div class="row">
+          <button class="sm" onclick="auExport('csv')">Download CSV</button>
+          <button class="sm" onclick="auExport('txt')">Download .txt report</button>
+        </div>
+      </div>
+    </details>
   </div>
 </details>
 
@@ -574,7 +591,7 @@ Object.defineProperty(window, 'busy', {
   get() { return _busy; },
   set(v) {
     _busy = !!v;
-    ['bPrev', 'bAll', 'bApply', 'bApply2'].forEach(i => { const e = $(i); if (e) e.disabled = _busy; });
+    ['bPrev', 'bAll', 'bApply', 'bApply2', 'auRun'].forEach(i => { const e = $(i); if (e) e.disabled = _busy; });
     $('bStop').hidden = !_busy;
     if (!_busy) $('pg').hidden = true;
   }
@@ -995,7 +1012,7 @@ async function gatherDocs() {
   const map = new Map();
   const rec = $('rec').checked;
   if (scoped) scoped.forEach(d => map.set(d.id, {id: d.id, name: d.name}));
-  else for (const fl of folders) for (const d of await listDocs(fl.id, rec)) map.set(d.id, d);
+  else for (const fl of folders) for (const d of await listDocs(fl.id, rec)) { if (!map.has(d.id)) d.nov = fl.path; map.set(d.id, d); }
   const nf = $('nfilter').value.trim().toLowerCase();
   let docs = [...map.values()].filter(d => !nf || d.name.toLowerCase().includes(nf));
   const fromV = $('rfrom').value.trim(), toV = $('rto').value.trim();
@@ -2643,6 +2660,154 @@ function hoReset() {
 }
 $('hoLang').addEventListener('change', hoRender);
 hoRender();
+
+/* ---------- v5.6: shared text pass + glossary audit (read only, never writes) ---------- */
+/* textPass(docs, perDoc(doc, paras, rawDoc), label) reads every doc like scan(): retry/429 via api(), speed delay, Stop, progress.
+   A doc that fails is listed in .failed; 3 failures in a row abort with the error. Returns {done, stopped, failed}. */
+async function textPass(docs, perDoc, label) {
+  let done = 0, stopped = false, run = 0; const failed = [];
+  for (let i = 0; i < docs.length; i++) {
+    if (stopFlag) { stopped = true; stopFlag = false; break; }
+    setStatus(`${label}: ${i + 1}/${docs.length}`); progress(i + 1, docs.length);
+    try {
+      const d = await api(`https://docs.googleapis.com/v1/documents/${docs[i].id}?fields=revisionId,body`);
+      const paras = [];
+      collectParas(d.body && d.body.content, paras);
+      await perDoc(docs[i], paras, d);
+      done++; run = 0;
+    } catch (e) { failed.push(docs[i].name); if (++run >= 3) throw e; }
+    await sleep(readDelay());
+  }
+  return {done, stopped, failed};
+}
+let auLast = null;
+async function glossaryAudit() {
+  if (busy) return;
+  const {pairs, bad} = parsePairs();
+  if (bad.length) return setStatus('This line has no "=>": ' + bad[0]);
+  if (!pairs.length) return setStatus('Write at least one "wrong => correct" line.');
+  let res, info;
+  const mode = getMode();
+  try {
+    res = pairs.map(p => buildRe(p));
+    info = pairs.map(p => {
+      const vs = mode === 're' ? [p.find] : p.find.split(' | ').map(x => x.trim()).filter(Boolean);
+      /* each variant as an anchored regex, to say which variant a match of the whole pair was */
+      const an = vs.length > 1 ? vs.map(v => { const r = buildRe({find: v}); return new RegExp('^(?:' + r.source + ')$', r.flags.replace('g', '')); }) : null;
+      return {vs, an};
+    });
+  } catch (e) { return setStatus('Invalid pattern: ' + e.message); }
+  busy = true; stopFlag = false;
+  await keepAwake();
+  try {
+    const g = await gatherDocs();
+    if (!g) return;
+    const T = pairs.map((p, k) => ({k, find: p.find, repl: p.repl, n: 0, files: 0, v: info[k].vs.map(() => 0), other: 0, nov: {}}));
+    const N = {};
+    const pass = await textPass(g.docs, async (doc, paras) => {
+      const nv = doc.nov || '(selected files)', nr = N[nv] = N[nv] || {docs: 0, files: 0, n: 0, terms: new Set()};
+      nr.docs++;
+      const c = pairs.map(() => 0);
+      for (const para of paras) for (let k = 0; k < pairs.length; k++) {
+        const re = res[k]; re.lastIndex = 0;
+        let m;
+        while ((m = re.exec(para.text))) {
+          if (!m[0].length) { re.lastIndex++; continue; }
+          c[k]++;
+          const an = info[k].an;
+          if (an) { const j = an.findIndex(r => r.test(m[0])); if (j < 0) T[k].other++; else T[k].v[j]++; }
+          else T[k].v[0]++;
+        }
+      }
+      let hit = 0;
+      c.forEach((n, k) => {
+        if (!n) return;
+        hit += n; T[k].n += n; T[k].files++;
+        const x = T[k].nov[nv] = T[k].nov[nv] || {n: 0, files: 0}; x.n += n; x.files++;
+        nr.terms.add(k);
+      });
+      if (hit) { nr.files++; nr.n += hit; }
+    }, 'Audit');
+    if (pass.stopped && !pass.done) { setStatus('Stopped.'); return; }
+    auLast = {T, N, docs: pass.done, totalDocs: g.docs.length, stopped: pass.stopped, failed: pass.failed, mode, flex: $('flex').checked, smart: $('smart').checked && mode !== 're',
+      matchCase: $('c').checked, rangeInfo: g.rangeInfo, folders: g.scoped ? ['(files from ' + (g.sc === 'last' ? 'the last run' : 'the failed list') + ')'] : g.folders.map(f => f.path), time: new Date().toLocaleString()};
+    auRender();
+    $('auBox').open = true;
+    $('pg').hidden = true; setStatus('');
+  } catch (e) { setStatus('Error: ' + e.message); }
+  finally { busy = false; releaseAwake(); }
+}
+function auRender() {
+  const a = auLast; if (!a) return;
+  const tot = a.T.reduce((x, t) => x + t.n, 0), zero = a.T.filter(t => !t.n).length;
+  $('auInfo').textContent = `${a.docs} of ${a.totalDocs} docs checked, ${a.T.length} pairs, ${tot} matches, ${zero} pair${zero === 1 ? '' : 's'} not found.` + (a.stopped ? ' Stopped early: the counts are partial.' : '') + (a.failed.length ? ` ${a.failed.length} docs could not be read.` : '');
+  const so = $('auSort').value, L = a.T.slice();
+  if (so === 'most') L.sort((x, y) => y.n - x.n || x.k - y.k); else if (so === 'zero') L.sort((x, y) => (x.n ? 1 : 0) - (y.n ? 1 : 0) || x.k - y.k);
+  const box = $('auList'); box.textContent = '';
+  L.slice(0, 500).forEach(t => {
+    const r = el('div'); r.className = 'exr'; r.setAttribute('role', 'button'); r.tabIndex = 0;
+    const rw = el('span', 'Pair ' + (t.k + 1)); rw.className = 'rw'; rw.style.display = 'block';
+    const w = el('span', t.find); w.className = 'wr';
+    const ok = el('span', t.repl ? t.repl : '(delete)'); ok.className = 'ok';
+    const l1 = el('div'); l1.append(w, ' => ', ok);
+    const l2 = el('span', t.n ? `${t.n} match${t.n === 1 ? '' : 'es'} in ${t.files} file${t.files === 1 ? '' : 's'}` : 'not found'); l2.className = 'au';
+    r.append(rw, l1, l2);
+    if (t.v.length > 1 && t.n) {
+      const vs = a.vs ? a.vs[t.k] : (a.mode === 're' ? [t.find] : t.find.split(' | ').map(x => x.trim()).filter(Boolean));
+      const d = el('span', vs.map((v, j) => `${v}: ${t.v[j]}`).join(' | ') + (t.other ? ` | other: ${t.other}` : '')); d.className = 'au'; r.append(d);
+    }
+    const nk = Object.keys(t.nov);
+    if (nk.length > 1) { const d = el('span', nk.map(x => `${x}: ${t.nov[x].n}`).join(' | ')); d.className = 'au'; r.append(d); }
+    const go = () => auPreview(t.k);
+    r.addEventListener('click', go); r.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+    box.append(r);
+  });
+  if (L.length > 500) { const m = el('div', `${L.length - 500} more pairs: see the CSV.`); m.className = 'exr more'; box.append(m); }
+  const nb = $('auNov'), nn = Object.keys(a.N); nb.textContent = '';
+  nb.hidden = nn.length < 2;
+  nn.forEach(n => { const x = a.N[n], r = el('div', `${n}: ${x.docs} docs, ${x.files} with matches, ${x.n} matches, ${x.terms.size} pairs hit`); r.className = 'exr'; nb.append(r); });
+}
+$('auSort').addEventListener('change', auRender);
+/* tap a term: run Find only for that one pair; the pairs box is left as it was */
+async function auPreview(k) {
+  if (busy || !auLast) return;
+  const t = auLast.T[k], box = $('pairs'), keep = box.value;
+  box.value = t.find + ' => ' + t.repl;
+  $('fo').checked = true; $('fo').dispatchEvent(new Event('change')); saveOpts();
+  try { await preview(); } finally { box.value = keep; }
+  setStatus('Find only is on (turn it off before Replace). Your pairs list was not changed.');
+  $('sum').scrollIntoView({block: 'start', behavior: 'smooth'});
+}
+function auExport(fmt) {
+  const a = auLast;
+  if (!a) return setStatus('Run the audit first.');
+  const base = 'audit-' + stamp(), vsOf = t => a.mode === 're' ? [t.find] : t.find.split(' | ').map(x => x.trim()).filter(Boolean);
+  if (fmt === 'csv') {
+    const rows = [['Pair', 'Kind', 'Wrong', 'Correct', 'Novel', 'Matches', 'Files']];
+    a.T.forEach(t => {
+      rows.push([t.k + 1, 'pair', t.find, t.repl, 'ALL', t.n, t.files]);
+      if (t.v.length > 1) vsOf(t).forEach((v, j) => rows.push([t.k + 1, 'variant', v, t.repl, 'ALL', t.v[j], '']));
+      Object.keys(t.nov).forEach(n => rows.push([t.k + 1, 'pair', t.find, t.repl, n, t.nov[n].n, t.nov[n].files]));
+    });
+    downloadFile(base + '.csv', '\uFEFF' + rows.map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n', 'text/csv');
+    return setStatus('Audit CSV downloaded.');
+  }
+  const L = ['Bulk Replace glossary audit', 'Time: ' + a.time, 'Case match: ' + (a.matchCase ? 'yes' : 'no'),
+    'Matching: ' + ({lit: 'contains', word: 'whole word', re: 'regular expression'}[a.mode] || 'contains') + (a.flex ? ', flexible spaces' : '') + (a.smart ? ', smart matching' : '') + ', find only',
+    'Folder: ' + a.folders.join(' | ')];
+  if (a.rangeInfo) L.push(a.rangeInfo);
+  L.push(`Docs checked: ${a.docs} of ${a.totalDocs}` + (a.stopped ? ' (stopped early, counts are partial)' : ''), '', '--- Pairs');
+  a.T.forEach(t => {
+    L.push(`${t.k + 1}) ${t.find} => ${t.repl} : ${t.n} matches, ${t.files} files`);
+    if (t.v.length > 1 && t.n) L.push('    variants: ' + vsOf(t).map((v, j) => `${v}: ${t.v[j]}`).join(' | ') + (t.other ? ` | other: ${t.other}` : ''));
+    const nk = Object.keys(t.nov); if (nk.length > 1) L.push('    novels: ' + nk.map(n => `${n}: ${t.nov[n].n}`).join(' | '));
+  });
+  L.push('', '--- Novels');
+  Object.keys(a.N).forEach(n => { const x = a.N[n]; L.push(`${n}: ${x.docs} docs, ${x.files} with matches, ${x.n} matches, ${x.terms.size} pairs hit`); });
+  if (a.failed.length) L.push('', '--- Docs that could not be read', ...a.failed);
+  downloadFile(base + '.txt', L.join('\n') + '\n', 'text/plain');
+  setStatus('Audit report downloaded.');
+}
 </script>
 </body>
 </html>

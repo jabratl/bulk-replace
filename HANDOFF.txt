@@ -1,4 +1,4 @@
-BULK REPLACE - MASTER HANDOFF  |  current: v5.5 (S1-S6 done)  |  plan: v5.0 -> v5.17
+BULK REPLACE - MASTER HANDOFF  |  current: v5.6 (S1-S7 done)  |  plan: v5.0 -> v5.17
 ==========================================================================
 This file is self-contained. HANDOFF.md = frozen legacy feature reference for v4.x (read only if a step says so).
 Mark steps [x] here when done and add a CHANGELOG line (see section 6).
@@ -51,6 +51,14 @@ Mark steps [x] here when done and add a CHANGELOG line (see section 6).
 - Entry flag rules.honor (checkbox #geHon "Has honorific", saved in geSave, kept on edit). Implementation = pair-text expansion in entriesToPairs(arr, hon?): for entries with the flag and a correct term, for each honorific with act drop/tr a line `name-san | name san => replacement` is emitted BEFORE the plain line (ASCII honorifics get "-" and " " forms, CJK none, prefixes use " "); wrong forms that already carry an honorific are not expanded; keep = no line (the name changes, honorific stays). Translate joins: suffix `correct tr` (no space if tr starts with - , . ; : )), prefix `tr correct`. Drop = name+honorific -> correct. Works with Smart matching (separators already flexible). Case: honorific is lowercase as typed.
 - BEHAVIOUR CHANGE in applySelected (overlap): overlapping matches are now resolved by pair order (the pair higher in the list wins; before: the match with the later start won), then applied back to front. Same result as before when matches start at the same place; needed so a prefix honorific pair ("Senior Brother Wang") beats the plain name pair.
 - Not done: Russian patronymic endings cannot be generated from a name (list full patronymic words or titles yourself); rules{} (swap/honor) is still not in CSV/JSON export; honorific lines need Whole word mode to avoid hits inside longer words.
+
+3f. ADDED IN v5.6 (S7)
+- Shared walker (end of script): textPass(docs, perDoc(doc, paras, rawDoc), label) -> {done, stopped, failed}. Reads each doc via api() (retry/429), collectParas, readDelay(), Stop (stopFlag), progress(); a failing doc goes to .failed, 3 failures in a row abort. scan() is NOT refactored onto it (kept untouched on purpose); S8/S9/S13 should call textPass.
+- gatherDocs now tags each doc with .nov = path of the ticked folder it came from (docs from "last run"/"failed" lists have no .nov -> "(selected files)").
+- Step 3 card: <details class="box" id="auBox"> after the Count docs button: #auRun (disabled while busy), #auInfo, #auSort (pair/most/zero), #auList (.exl, rows .exr role=button), #auNov (per-novel rows, shown when 2+ novels), CSV + .txt buttons. CSS #auList:empty message, .exr .au.
+- Functions: glossaryAudit (uses current #pairs + Step 3 options exactly like Preview: same buildRe, same counting, so totals/files equal Preview; variants of a pair are classified with anchored per-variant regexes), auRender, auPreview(k) (temporarily puts that one pair in #pairs, turns Find only ON, runs preview(), restores #pairs; Find only stays on), auExport('csv'|'txt'). Var auLast = {T[{k,find,repl,n,files,v[],other,nov{}}], N{novel:{docs,files,n,terms:Set}}, docs, totalDocs, stopped, failed, mode, flex, smart, matchCase, rangeInfo, folders, time}.
+- CSV (UTF-8 BOM): Pair,Kind(pair|variant),Wrong,Correct,Novel(ALL or novel),Matches,Files; variant rows only for ALL. .txt report: header, Matching line, --- Pairs (with variants/novels lines), --- Novels, failed docs. Audit never sends a write request (GET only).
+- Not done: audit does not read entries directly (it audits the pairs in #pairs; load entries with "Use as pairs" first); no per-variant-per-novel counts.
 
 3. KEY DATA SHAPES (v4.8, keep working)
 - Pairs text in textarea #pairs: lines `wrong => correct`; `#` = comment; variants on left: `a | b => c` (space-pipe-space, longest wins); no `=>` allowed only in Find-only (#fo).
@@ -122,7 +130,7 @@ PHASE B - Language-aware matching (new switch "Smart matching" in Step 3, rememb
     Checks: drop removes honorific + separator; keep leaves; translate swaps; works with S4 patterns.
 
 PHASE C - Audit and discovery (no AI)
-[ ] S7 (v5.6) BUILD M ~40%  (dep S1)
+[x] S7 (v5.6) BUILD M ~40%  DONE  (dep S1)
     Goal: glossary audit + shared text-pass walker.
     Do: fn textPass(docs, perDocFn) built on gatherDocs/scan reading (reuse retry, speed, Stop, progress); "Glossary audit" button runs every wrong variant as find-only, report counts per term and per novel (table + CSV + .txt), tap term -> loads it into Find-only preview.
     Checks: Stop works with partial results; counts equal Preview counts for same pair; no writes sent.
@@ -189,9 +197,10 @@ PHASE G - Reports and maintenance
 - Playwright with mocked Google APIs was used in v4.x (suites not in this zip). For new steps, at minimum: node --check on extracted <script>, node unit tests for pure functions (smartPattern, entriesToPairs, transliterators), one mocked-DOM smoke test if Playwright is available.
 
 10. NEXT-CHAT KICKOFF LINE (copy exactly, change the step id each time)
-"Read HANDOFF.txt (uploaded). Do ONLY step S7 (next unchecked step). Patch index.html only, output changed files only, one step per chat, stop at 85% session (hard stop 90%), tick [x] and add CHANGELOG."
+"Read HANDOFF.txt (uploaded). Do ONLY step S8 (next unchecked step). Patch index.html only, output changed files only, one step per chat, stop at 85% session (hard stop 90%), tick [x] and add CHANGELOG."
 
 11. CHANGELOG
+v5.6 (S7) 2026-11-06: glossary audit (Step 3 box): counts per pair, per variant and per novel, sort, tap a term -> Find only for that pair, CSV + .txt export; shared textPass walker; docs tagged with novel folder. Tests: node --check, no duplicate ids, Playwright mocked Drive/Docs at 360+1280 light+dark (audit totals/files == Preview totals for plain and smart+whole-word, 2 novels, variant split, zero-first sort, tap term keeps pairs box, CSV/txt, Stop gives partial result and unlocks UI, 0 write requests, no overflow, 0 JS errors); S4-S6 suites still pass. NOT tested: real Drive/Docs.
 v5.5 (S6) 2026-11-06: honorific rules per language (keep/translate/drop, suffix or prefix) in Settings, store 'honor' + backup, entry flag "Has honorific" expands to ordered pair lines; overlap rule in applySelected now = earlier pair wins. Tests: node cases (drop/translate/keep, prefix+suffix, CJK, swap+honorific, smart, already-honorific wrong forms, clean/defaults), node --check, no duplicate ids, Playwright 360+1280 light+dark (edit/add/reset rows, persistence after reload, language switch, backup holds honor, entry flag, no overflow, 0 JS errors). NOT tested: real Docs run, applySelected with mocked API.
 v5.4 (S5) 2026-11-06: smart matching B: diacritics (o = ō, é = e), long-vowel romanization (ō = ou/oo/ô/o, ū = uu/û/u, ā, ī, ē), entry flag "swap name order" (Li Wei | Wei Li) via entriesToPairs, sub-switches smDia/smRom. Tests: node cases (macron/circumflex/decomposed text+term, case modes, switches off, backtracking timing), node --check, no duplicate ids, Playwright 360+1280 light+dark (swap flag, option persistence, 0 JS errors, no overflow).
 v5.3 (S4) 2026-11-06: smart matching A: switch "Smart matching" (forces match-by-match path), spaces/hyphens/apostrophes optional, fullwidth/halfwidth Latin + kana, ё/е, zero-width chars, report line, undo refused for smart runs. Tests: node cases (each variant matches, CJK/Hangul untouched, special chars escaped, 60-char fallback, offsets), plain mode untouched when off (Playwright buildRe check).
