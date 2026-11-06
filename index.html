@@ -87,6 +87,7 @@ progress::-moz-progress-bar{background:var(--ac)}
 #rv{padding:14px 16px;display:grid;gap:10px;position:relative}
 #selinfo{font-weight:650;font-size:14px;color:var(--ac)}
 details.box{border:1px solid var(--bd);border-radius:12px;background:var(--sf2)}
+div.smbox{border:1px solid var(--bd);border-radius:12px;background:var(--sf2);padding:10px 12px}
 details.box>summary{padding:10px 12px;min-height:44px;cursor:pointer;font-weight:600;font-size:14.5px;display:flex;align-items:center}
 details.box>.bd{padding:4px 12px 12px}
 #exp{width:100%;margin-bottom:14px}
@@ -155,7 +156,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
 <body>
 <div class="app">
 <header class="top">
-  <div class="t"><h1>Bulk Replace<span class="ver">v5.2</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
+  <div class="t"><h1>Bulk Replace<span class="ver">v5.4</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
   <button id="hbtn" onclick="openHistory()" title="History of replace runs">History</button>
   <button class="icon" id="thm" onclick="cycleTheme()" aria-label="Change theme" title="Change theme">Auto</button>
 </header>
@@ -317,6 +318,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
         <label>Type<select id="geType"><option value="name">Name</option><option value="skill">Skill</option><option value="place">Place</option><option value="title">Title</option><option value="other">Other</option></select></label>
       </div>
       <label>Note (optional)<input type="text" id="geNote" autocomplete="off"></label>
+      <label class="sw"><input type="checkbox" id="geSwap">Swap name order (a 2-word wrong form such as Li Wei also finds Wei Li)</label>
       <div class="row">
         <button class="pri" onclick="geSave()">Save entry</button>
         <button onclick="geClose()">Cancel</button>
@@ -389,6 +391,14 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
     </label>
     <p class="hint" id="modeHint"></p>
     <label class="sw"><input type="checkbox" id="flex">Flexible spaces (a space in the term matches any run of spaces)</label>
+    <label class="sw"><input type="checkbox" id="smart">Smart matching (spaces, hyphens, apostrophes, fullwidth forms, diacritics and long vowels count as the same)</label>
+    <div class="smbox" id="smBox" hidden>
+      <label class="sw"><input type="checkbox" id="smSp" checked>Spaces, hyphens, apostrophes (Xiao Yan = XiaoYan = Xiao-Yan)</label>
+      <label class="sw"><input type="checkbox" id="smW" checked>Fullwidth/halfwidth, ё/е (ru), zero-width characters</label>
+      <label class="sw"><input type="checkbox" id="smDia" checked>Diacritics (o also matches ō, é matches e)</label>
+      <label class="sw"><input type="checkbox" id="smRom" checked>Long vowels (ō also matches ou, oo, ô, o)</label>
+      <p class="hint">Case follows "Match case". Not used in regular expression mode. Undo is not offered for Smart runs.</p>
+    </div>
     <label class="sw"><input type="checkbox" id="keepcase">Keep capitalization (a capitalized match gets a capitalized replacement, ALL CAPS stays ALL CAPS; works best with Match case off)</label>
     <label class="sw"><input type="checkbox" id="fo">Find only (list matches, never change anything)</label>
     <label class="sw"><input type="checkbox" id="c" checked>Match case (uppercase/lowercase must match)</label>
@@ -782,7 +792,7 @@ function delGloss() {
 refreshGloss();
 
 /* ---------- remember options ---------- */
-const OPT_IDS = ['c', 'rec', 'nfilter', 'rfrom', 'rto', 'extra', 'mode', 'flex', 'speed', 'keepcase'];
+const OPT_IDS = ['c', 'rec', 'nfilter', 'rfrom', 'rto', 'extra', 'mode', 'flex', 'speed', 'keepcase', 'smart', 'smSp', 'smW', 'smDia', 'smRom'];
 function saveOpts() {
   const o = {};
   OPT_IDS.forEach(i => { const e = $(i); o[i] = e.type === 'checkbox' ? e.checked : e.value; });
@@ -808,9 +818,85 @@ function buildRe(p) {
     try { return new RegExp(p.find, 'gu' + (ci ? 'i' : '')); } catch (e) { return new RegExp(p.find, 'g' + (ci ? 'i' : '')); }
   }
   const alts = p.find.split(' | ').map(x => x.trim()).filter(Boolean).sort((a, b) => b.length - a.length);
+  if ($('smart').checked) {
+    if (alts.length > SM_MAX_ALTS) throw new Error('Smart matching allows at most ' + SM_MAX_ALTS + ' variants per line');
+    const so = smartOpts(), ssrc = alts.map(a => smartPattern(a, so)).join('|');
+    if (mode === 'word') return new RegExp('(?<![\\p{L}\\p{N}\\p{M}_])(?:' + ssrc + ')(?![\\p{L}\\p{N}\\p{M}_])', 'gu' + (ci ? 'i' : ''));
+    return new RegExp('(?:' + ssrc + ')', 'gu' + (ci ? 'i' : ''));
+  }
   let src = alts.map(a => { const e = escapeRegExp(a); return flex ? e.replace(/\s+/g, '\\s+') : e; }).join('|');
   if (mode === 'word') return new RegExp('(?<![\\p{L}\\p{N}\\p{M}_])(?:' + src + ')(?![\\p{L}\\p{N}\\p{M}_])', 'gu' + (ci ? 'i' : ''));
   return new RegExp(alts.length > 1 ? '(?:' + src + ')' : src, 'g' + (ci ? 'i' : ''));
+}
+/* ---------- v5.3/v5.4: smart pattern builder (expands the TERM; document text is never normalized, so offsets stay valid) ---------- */
+const SM_MAX_ALTS = 40, SM_MAX_LEN = 60;
+const SM_SEP = "\\s\\-\\u2010\\u2011\\u2012\\u00AD'\\u2019\\u2018\\u02BC`\\u00B4", SM_ZW = '\\u200B-\\u200D\\uFEFF';
+let SM_PRE = null, SM_HALF = null;
+function smartOpts() { return {sp: $('smSp').checked, w: $('smW').checked, dia: $('smDia').checked, rom: $('smRom').checked}; }
+function smMaps() {
+  if (SM_PRE) return;
+  SM_PRE = {}; SM_HALF = {};
+  const add = c => { const d = c.normalize('NFD'); if (d.length > 1 && /^[A-Za-z]$/.test(d[0]) && /^[\u0300-\u036F]+$/.test(d.slice(1))) (SM_PRE[d[0]] = SM_PRE[d[0]] || []).push(c); };
+  for (let i = 0xC0; i <= 0x24F; i++) add(String.fromCharCode(i));
+  for (let i = 0x1E00; i <= 0x1EFF; i++) add(String.fromCharCode(i));
+  for (let i = 0xFF61; i <= 0xFF9F; i++) { const h = String.fromCharCode(i), f = h.normalize('NFKC'); if (f !== h && !SM_HALF[f]) SM_HALF[f] = h; }
+}
+function smCls(chars) { return '[' + chars.map(c => /[\p{L}\p{N}]/u.test(c) ? c : '\\u{' + c.codePointAt(0).toString(16) + '}').join('') + ']'; }
+function smartToken(t, o) {
+  const b = t.base, mk = t.marks;
+  if (/^[A-Za-z]$/.test(b)) {
+    const lc = b.toLowerCase(), isUp = b !== lc;
+    const withMarks = () => {
+      const ch = [b].concat(SM_PRE[b] || []);
+      if (o.w) ch.push(String.fromCharCode(b.charCodeAt(0) + 0xFEE0));
+      return smCls(ch) + '\\p{M}*';
+    };
+    if (o.rom && mk && /[\u0304\u0302]/.test(mk) && 'aeiou'.includes(lc)) {
+      const dbl = {a: ['aa'], i: ['ii'], u: ['uu'], e: ['ei', 'ee'], o: ['ou', 'oo']}[lc].map(x => escapeRegExp(isUp ? x[0].toUpperCase() + x.slice(1) : x));
+      return '(?:' + dbl.concat([withMarks()]).join('|') + ')';
+    }
+    if (o.dia) return withMarks();
+    const one = mk ? (b + mk).normalize('NFC') : b;
+    return o.w && !mk ? smCls([b, String.fromCharCode(b.charCodeAt(0) + 0xFEE0)]) : escapeRegExp(one);
+  }
+  if (!o.w) return escapeRegExp(b + mk);
+  if (/^[е\u0451]$/i.test(b)) return /[А-Я\u0401]/.test(b) ? smCls(['Е', 'Ё']) : smCls(['е', 'ё']);
+  const cp = b.codePointAt(0);
+  if (cp >= 0x21 && cp <= 0x7E) return smCls([b, String.fromCharCode(cp + 0xFEE0)]);
+  if (cp >= 0x30A1 && cp <= 0x30FC) {
+    const d = b.normalize('NFD');
+    const h = d.length === 2 && SM_HALF[d[0]] && /[\u3099\u309A]/.test(d[1]) ? SM_HALF[d[0]] + (d[1] === '\u3099' ? '\uFF9E' : '\uFF9F') : SM_HALF[b];
+    if (h) return '(?:' + escapeRegExp(b) + '|' + escapeRegExp(h) + ')';
+  }
+  return escapeRegExp(b);
+}
+/* term -> regex source (use with the u flag). Terms over SM_MAX_LEN characters are matched as plain text. */
+function smartPattern(term, o) {
+  o = o || {sp: true, w: true, dia: true, rom: true};
+  smMaps();
+  let t = String(term).trim();
+  t = o.w ? t.normalize('NFKC') : t.normalize('NFC');
+  const chars = Array.from(t);
+  if (!chars.length) return '';
+  if (chars.length > SM_MAX_LEN) return escapeRegExp(t);
+  const toks = [];
+  for (const ch of chars) {
+    const last = toks[toks.length - 1];
+    if (/[\u0300-\u036F]/.test(ch) && last && last.base && /^[A-Za-z]$/.test(last.base)) { last.marks += ch; continue; }
+    if (o.sp && /[\s\-\u2010\u2011\u2012\u00AD'\u2019\u2018\u02BC`\u00B4]/.test(ch)) { if (!last || !last.sep) toks.push({sep: true}); continue; }
+    if (/^\s$/.test(ch)) { if (!last || !last.ws) toks.push({ws: true, base: ' ', marks: ''}); continue; }
+    if (/[\u00C0-\u024F\u1E00-\u1EFF]/.test(ch)) { const d = ch.normalize('NFD'); toks.push({base: d[0], marks: d.slice(1)}); continue; }
+    toks.push({base: ch, marks: ''});
+  }
+  const zw = o.w ? SM_ZW : '';
+  const gap = '[' + SM_SEP + zw + ']*', zwo = zw ? '[' + zw + ']*' : '';
+  let out = '';
+  toks.forEach((tk, i) => {
+    if (tk.sep) { out += gap; return; }
+    if (i > 0 && !toks[i - 1].sep && zwo) out += zwo;
+    out += tk.ws ? '\\s+' : smartToken(tk, o);
+  });
+  return out;
 }
 function keepCase(src, rep, on) {
   if (!on || !rep || !src) return rep;
@@ -962,7 +1048,7 @@ async function scan() {
     await sleep(readDelay());
   }
   if (stopped && !scanned) { setStatus('Stopped.'); return null; }
-  return {docs: scanned, totalDocs: docs.length, stopped, keep: kc, results, totalMatches, pairs, totals, fileCounts, matchCase, mode, flex: $('flex').checked, fo,
+  return {docs: scanned, totalDocs: docs.length, stopped, keep: kc, results, totalMatches, pairs, totals, fileCounts, matchCase, mode, flex: $('flex').checked, smart: $('smart').checked && mode !== 're', fo,
     folderNames: scoped ? ['(files from ' + (sc === 'last' ? 'the last run' : 'the failed list') + ')'] : folders.map(f => f.path), rec, nf, rangeInfo};
 }
 
@@ -1249,7 +1335,7 @@ function buildReport(r, label, rows, note) {
   L.push('Time: ' + new Date().toLocaleString());
   L.push('Mode: ' + label);
   L.push('Case match: ' + (r.matchCase ? 'yes' : 'no'));
-  L.push('Matching: ' + ({lit: 'contains', word: 'whole word', re: 'regular expression'}[r.mode] || 'contains') + (r.flex ? ', flexible spaces' : '') + (r.fo ? ', find only' : '') + (r.keep ? ', keep capitalization' : ''));
+  L.push('Matching: ' + ({lit: 'contains', word: 'whole word', re: 'regular expression'}[r.mode] || 'contains') + (r.flex ? ', flexible spaces' : '') + (r.smart ? ', smart matching' : '') + (r.fo ? ', find only' : '') + (r.keep ? ', keep capitalization' : ''));
   L.push('Folder: ' + r.folderNames.join(' | '));
   L.push('Include subfolders: ' + (r.rec ? 'yes' : 'no') + (r.nf ? '; name filter: ' + r.nf : ''));
   if (r.rangeInfo) L.push(r.rangeInfo);
@@ -1399,7 +1485,7 @@ async function replaceAll() {
     }
     const short = r.pairs.some(p => p.find.length < 3);
     const pw = pairWarnings().W.filter(w => !/very short|will be deleted/.test(w));
-    const adv = r.mode !== 'lit' || r.flex || r.keep || r.pairs.some(p => p.find.includes(' | '));
+    const adv = r.mode !== 'lit' || r.flex || r.smart || r.keep || r.pairs.some(p => p.find.includes(' | '));
     const msg = `Folder: ${r.folderNames.join(' | ')}\n\n${r.rangeInfo ? r.rangeInfo + '\n\n' : ''}${r.stopped ? 'The scan was stopped early: only ' + r.docs + ' of ' + r.totalDocs + ' docs were checked.\n\n' : ''}${r.totalMatches} matches in ${r.results.length} files, ${r.pairs.length} pairs.` +
       (short ? '\n\nWarning: some terms are very short and may also change other words.' : '') +
       (pw.length ? '\n\nPair check: ' + pw.length + ' warning' + (pw.length === 1 ? '' : 's') + '. First: ' + pw[0] + ' (see "Check pairs" in Step 2 for all of them.)' : '') +
@@ -1594,7 +1680,10 @@ function updateModeHint() {
     re: 'The left side is a regular expression. In the replacement use $1, $2 for groups and $& for the whole match. Example: Chapter (\\d+) => Ch. $1'
   }[m];
   $('flex').disabled = m === 're';
+  $('smart').disabled = m === 're';
+  $('smBox').hidden = m === 're' || !$('smart').checked;
 }
+$('smart').addEventListener('change', updateModeHint);
 $('mode').addEventListener('change', updateModeHint);
 $('fo').addEventListener('change', () => document.body.classList.toggle('fo', $('fo').checked));
 updateModeHint();
@@ -1703,7 +1792,7 @@ function saveLastRun(r, ok, failed) {
   if (!ok.length && !failed.length) return;
   store.set('lastRun', JSON.stringify({
     t: Date.now(), ids: ok.map(f => ({id: f.id, name: f.name})), failed,
-    pairs: r.pairs.map(p => ({find: p.find, repl: p.repl})), mode: r.mode, flex: !!r.flex, matchCase: !!r.matchCase
+    pairs: r.pairs.map(p => ({find: p.find, repl: p.repl})), mode: r.mode, flex: !!r.flex, smart: !!r.smart, matchCase: !!r.matchCase
   }));
   updateScopeHint();
 }
@@ -1715,6 +1804,7 @@ function undoPrepare() { undoFrom(getLastRun()); }
 function undoFrom(lr) {
   if (!lr || !lr.ids.length) return setStatus('No finished replace is recorded on this device yet.');
   if (lr.mode === 're') return setStatus('Undo is not available for regular expression runs. Use Docs Version history.');
+  if (lr.smart) return setStatus('Undo is not available for Smart matching runs (the matched spelling can differ from the term). Use Docs Version history.');
   const lines = []; let skipped = 0;
   for (const p of lr.pairs) {
     if (!p.repl || p.find.includes(' | ') || p.repl === p.find) { skipped++; continue; }
@@ -1747,7 +1837,7 @@ function saveHistory(r, label, failed) {
   }
   const run = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t: Date.now(), label,
-    pairs: r.pairs.map(p => ({find: p.find, repl: p.repl})), mode: r.mode, flex: !!r.flex, matchCase: !!r.matchCase,
+    pairs: r.pairs.map(p => ({find: p.find, repl: p.repl})), mode: r.mode, flex: !!r.flex, smart: !!r.smart, matchCase: !!r.matchCase,
     folderNames: r.folderNames, rec: r.rec, nf: r.nf || '', rangeInfo: r.rangeInfo || '', docs: r.docs,
     total, nfiles: r.results.length, files, trunc, failed: (failed || []).slice(0, 50)
   };
@@ -1768,7 +1858,7 @@ function runToR(run) {
     return {id: f.id, name: f.name, n: matches.length, counts: [], matches};
   });
   return {docs: run.docs || results.length, results, totalMatches: run.total, pairs: run.pairs, totals, fileCounts,
-    matchCase: run.matchCase, mode: run.mode, flex: run.flex, fo: false, folderNames: run.folderNames || [], rec: run.rec, nf: run.nf, rangeInfo: run.rangeInfo};
+    matchCase: run.matchCase, mode: run.mode, flex: run.flex, smart: !!run.smart, fo: false, folderNames: run.folderNames || [], rec: run.rec, nf: run.nf, rangeInfo: run.rangeInfo};
 }
 function viewRun(id) {
   if (busy) return setStatus('Wait for the current job to finish.');
@@ -1794,7 +1884,7 @@ function histReport(id) {
 function histUndo(id) {
   const run = getHist().find(x => x.id === id);
   if (!run) return;
-  undoFrom({t: run.t, ids: run.files.map(f => ({id: f.id, name: f.name})), failed: [], pairs: run.pairs, mode: run.mode, flex: run.flex, matchCase: run.matchCase});
+  undoFrom({t: run.t, ids: run.files.map(f => ({id: f.id, name: f.name})), failed: [], pairs: run.pairs, mode: run.mode, flex: run.flex, smart: !!run.smart, matchCase: run.matchCase});
 }
 function delRun(id) {
   if (!confirm('Delete this run from the history?')) return;
@@ -2101,7 +2191,7 @@ async function undoFromReport(inp) {
       if (m) ids.push({id: m[3], name: m[1]});
     }
     if (!pairs.length || !ids.length) throw new Error('no pairs or files found in the report.');
-    undoFrom({t: Date.now(), ids, failed: [], pairs, mode, flex: /flexible/.test(matching), matchCase: /Case match: yes/.test(line('Case match: '))});
+    undoFrom({t: Date.now(), ids, failed: [], pairs, mode, flex: /flexible/.test(matching), smart: /smart matching/.test(matching), matchCase: /Case match: yes/.test(line('Case match: '))});
   } catch (e) { setStatus('Import failed: ' + e.message); }
 }
 $('autog').checked = store.get('autog', '0') === '1';
@@ -2156,6 +2246,10 @@ function entriesToPairs(arr) {
   for (const e of arr || []) {
     const w = (e.wrong || []).map(x => String(x).trim()).filter(Boolean);
     if (!w.length) { skipped++; continue; }
+    if (e.rules && e.rules.swap) {
+      const low = new Set(w.map(x => x.toLowerCase()));
+      w.slice().forEach(x => { const q = x.split(/\s+/); if (q.length === 2) { const y = q[1] + ' ' + q[0]; if (!low.has(y.toLowerCase())) { low.add(y.toLowerCase()); w.push(y); } } });
+    }
     lines.push(w.join(' | ') + ' => ' + String(e.correct || '').trim());
   }
   return {text: lines.join('\n'), count: lines.length, skipped};
@@ -2248,6 +2342,7 @@ function geOpen(id) {
   $('geRaw').value = e ? e.raw : ''; $('geWrong').value = e ? e.wrong.join('\n') : '';
   $('geCor').value = e ? e.correct : ''; $('geLang').value = e ? e.lang : 'ja';
   $('geType').value = e ? e.type : 'name'; $('geNote').value = e ? e.note : '';
+  $('geSwap').checked = !!(e && e.rules && e.rules.swap);
   $('geDelB').hidden = !e; $('geEd').hidden = false;
   $('geEd').scrollIntoView({block: 'nearest', behavior: 'smooth'});
   $(e ? 'geCor' : 'geRaw').focus({preventScroll: true});
@@ -2263,8 +2358,9 @@ function geSave() {
   if (clash && !confirm('A wrong form here is already used by another entry with a different correct term ("' + clash.correct + '"). Save anyway?')) return;
   const data = {raw, wrong, correct: $('geCor').value, lang: $('geLang').value, type: $('geType').value, note: $('geNote').value.trim()};
   const i = geEditId ? list.findIndex(x => x.id === geEditId) : -1;
-  if (i >= 0) { const o = list[i]; list[i] = Object.assign(entryNew(data), {id: o.id, from: o.from, to: o.to, rawCh: o.rawCh, rules: o.rules}); }
-  else list.push(entryNew(data));
+  const rl = Object.assign({}, i >= 0 ? list[i].rules : {}); if ($('geSwap').checked) rl.swap = true; else delete rl.swap;
+  if (i >= 0) { const o = list[i]; list[i] = Object.assign(entryNew(data), {id: o.id, from: o.from, to: o.to, rawCh: o.rawCh, rules: rl}); }
+  else list.push(entryNew(Object.assign(data, {rules: rl})));
   if (!glexSet(name, list)) return setStatus('Not saved (browser storage is blocked).');
   geClose(); renderEntries();
   setStatus(i >= 0 ? 'Entry updated.' : 'Entry added.');

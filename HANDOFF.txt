@@ -1,4 +1,4 @@
-BULK REPLACE - MASTER HANDOFF  |  current: v5.2 (S1-S3 done)  |  plan: v5.0 -> v5.17
+BULK REPLACE - MASTER HANDOFF  |  current: v5.4 (S1-S5 done)  |  plan: v5.0 -> v5.17
 ==========================================================================
 This file is self-contained. HANDOFF.md = frozen legacy feature reference for v4.x (read only if a step says so).
 Mark steps [x] here when done and add a CHANGELOG line (see section 6).
@@ -37,6 +37,13 @@ Mark steps [x] here when done and add a CHANGELOG line (see section 6).
 - Export formats: CSV/TSV with BOM, header Raw,Wrong,Correct,Language,Type,Note,From,To (wrong forms joined by " | "); JSON {app:'bulk-replace-entries',version:1,set,date,entries[]}. Import errors use the "Import failed: ..." prefix (shown red).
 - autoGloss(): if no text glossary matches the ticked novel but an entries set of that name exists, the entries are written to #pairs (confirm if pairs differ). updateGlossSug (Step 1 suggestion button) still looks at text glossaries only.
 - Repo note: GitHub repo root has index.html + .github/workflows/unzip.yml. The workflow unzips any root *.zip into the repo root (wrapper folder removed, .git/.github/*.zip skipped), so zips from steps can be uploaded as is; HANDOFF.txt from the zip also lands in the repo root.
+
+3d. ADDED IN v5.3 + v5.4 (S4+S5, built together)
+- Step 3 switches: #smart "Smart matching" (+ #smBox div.smbox with #smSp spaces/hyphens/apostrophes, #smW fullwidth/halfwidth + yo/e (ru) + zero-width, #smDia diacritics, #smRom long vowels). All 5 ids are in OPT_IDS (remembered, default sub-options on). Disabled/hidden in regular expression mode (updateModeHint). CSS: div.smbox.
+- buildRe(p): when #smart is on and mode is lit/word, every " | " variant goes through smartPattern(term,opts); flags 'gu' (+i when Match case off); max SM_MAX_ALTS=40 variants per line (throws "Invalid pattern: ..."), terms over SM_MAX_LEN=60 chars match as plain text. Flexible-spaces switch is ignored while smart is on.
+- Functions (before keepCase): smartOpts, smMaps (lazy: precomposed Latin map SM_PRE, halfwidth kana map SM_HALF), smCls, smartToken, smartPattern. Term is expanded, document text is never normalized (offsets stay valid). Separators (space - U+2010-2012 soft hyphen ' U+2018/2019 U+02BC ` U+00B4) in the term become [sep+zero-width]*; zero-width [U+200B-200D U+FEFF]* is allowed between all characters; ASCII -> fullwidth class; halfwidth/fullwidth katakana incl. voiced (ガ = ｶﾞ) and ー = ｰ; ё<->е; Latin base letter + any diacritic (precomposed or combining, \p{M}*); macron/circumflex vowel in the term also matches doubled forms: ā aa, ī ii, ū uu, ē ei/ee, ō ou/oo. NOT done on purpose: plain "ou/oo/uu" in a term does not match ō (too many false hits), and "Xiaoyan" in a term does not match "Xiao Yan" (list both forms as wrong variants; S9 clusters them).
+- Entry flag rules.swap (editor checkbox #geSwap, saved in geSave, kept on edit): entriesToPairs adds the reversed order for each 2-word wrong form (Li Wei | Wei Li). Not in CSV/JSON import/export yet (rules{} is not exported).
+- scan() result has .smart; buildReport "Matching:" line adds ", smart matching"; Replace all uses the match-by-match path when smart; lastRun/history runs store smart. Undo (prepare, history, from report) is refused for smart runs because the matched spelling can differ from the term.
 
 3. KEY DATA SHAPES (v4.8, keep working)
 - Pairs text in textarea #pairs: lines `wrong => correct`; `#` = comment; variants on left: `a | b => c` (space-pipe-space, longest wins); no `=>` allowed only in Find-only (#fo).
@@ -94,11 +101,11 @@ PHASE A - Glossary entries with Raw column
     Checks: Excel/Sheets CSV with JP/KR/CN/RU text; quoted commas; duplicate handling; legacy glossaries unaffected.
 
 PHASE B - Language-aware matching (new switch "Smart matching" in Step 3, remembered via OPT_IDS, forces match-by-match path like regex)
-[ ] S4 (v5.3) MODIFY M ~35%
+[x] S4 (v5.3) MODIFY M ~35%  DONE
     Goal: smart pattern builder A: spacing/hyphen/apostrophe, case, ё/е, fullwidth/halfwidth.
     Do: fn smartPattern(term,opts)->regex source built from the ORIGINAL text pattern: optional zero-width chars (\u200B-\u200D\uFEFF) between letters; fullwidth/halfwidth Latin and CJK space (U+3000) equivalence via NFKC-aware classes; space/hyphen/apostrophe in term -> [\s\-\u2010\u2011]* (so Xiao Yan = Xiaoyan = Xiao-Yan); ё<->е for ru. Hook into buildRe (mode lit/word) when switch on. Report line "smart matching".
     Checks: unit cases in node (each variant matches), offsets correct in preview + applySelected, plain mode untouched when switch off.
-[ ] S5 (v5.4) MODIFY M ~35%  (dep S4)
+[x] S5 (v5.4) MODIFY M ~35%  DONE  (dep S4)
     Goal: smart pattern B: diacritics/macrons, romanization variants, name order.
     Do: per-char alternations (ō|ō|ou|oo|o|ô, ū/uu/u, etc.), diacritics via NFD base-letter classes; entry.wrong romanization variants all join the alternation; name order swap for 2-word terms (Li Wei | Wei Li) only when entry flag "swap order" set; keep longest-first.
     Checks: node cases; no catastrophic regex (cap alternation size); whole-word mode still Unicode-aware (existing).
@@ -175,9 +182,11 @@ PHASE G - Reports and maintenance
 - Playwright with mocked Google APIs was used in v4.x (suites not in this zip). For new steps, at minimum: node --check on extracted <script>, node unit tests for pure functions (smartPattern, entriesToPairs, transliterators), one mocked-DOM smoke test if Playwright is available.
 
 10. NEXT-CHAT KICKOFF LINE (copy exactly, change the step id each time)
-"Read HANDOFF.txt (uploaded). Do ONLY step S1 (next unchecked step). Patch index.html only, output changed files only, one step per chat, stop at 85% session (hard stop 90%), tick [x] and add CHANGELOG."
+"Read HANDOFF.txt (uploaded). Do ONLY step S6 (next unchecked step). Patch index.html only, output changed files only, one step per chat, stop at 85% session (hard stop 90%), tick [x] and add CHANGELOG."
 
 11. CHANGELOG
+v5.4 (S5) 2026-11-06: smart matching B: diacritics (o = ō, é = e), long-vowel romanization (ō = ou/oo/ô/o, ū = uu/û/u, ā, ī, ē), entry flag "swap name order" (Li Wei | Wei Li) via entriesToPairs, sub-switches smDia/smRom. Tests: node cases (macron/circumflex/decomposed text+term, case modes, switches off, backtracking timing), node --check, no duplicate ids, Playwright 360+1280 light+dark (swap flag, option persistence, 0 JS errors, no overflow).
+v5.3 (S4) 2026-11-06: smart matching A: switch "Smart matching" (forces match-by-match path), spaces/hyphens/apostrophes optional, fullwidth/halfwidth Latin + kana, ё/е, zero-width chars, report line, undo refused for smart runs. Tests: node cases (each variant matches, CJK/Hangul untouched, special chars escaped, 60-char fallback, offsets), plain mode untouched when off (Playwright buildRe check).
 v5.2 (S3) 2026-11-06: import/export of entries (CSV/TSV/JSON, paste from spreadsheet), conflict choices merge/skip/overwrite/keep both, undo last import, convert all saved glossaries, autoGloss falls back to entries-only sets. Tests: node --check, no duplicate ids, Playwright 360+1280 light+dark (CSV with BOM/quotes/CRLF/multiline, JP/KR/CN/RU, 4 conflict modes, undo, CSV/TSV/JSON export + re-import round trip, headerless 2/3 columns, invalid JSON, empty, convert all, autoGloss fallback, no overflow, 0 JS errors).
 v5.1 (S2) 2026-11-06: entry editor (add/edit/delete), search over raw/wrong/correct/note, language+type filters, tap row = detail/edit, reverse lookup, Save to glossary text. Tests: node --check, no duplicate ids, Playwright 360+1280 light+dark (add 4 entries incl. zh/ja/ru, search by raw, filter, reverse lookup, edit, delete, validation, sync to text glossary, reload persistence, no overflow, 0 JS errors).
 v5.0 (S1) 2026-11-06: glossary entries data layer ('glex'), read-only Glossary entries card (Load from glossary text / Use as pairs / Clear), glex in backup. Tests: node --check, no duplicate ids, Playwright 360+1280 light+dark (load, add raw entry, use as pairs, backup round trip, no overflow, 0 JS errors).
