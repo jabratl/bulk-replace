@@ -91,6 +91,7 @@ details.box{border:1px solid var(--bd);border-radius:12px;background:var(--sf2)}
 .hor>*{flex:1 1 110px;min-width:0}
 .hor:last-child{border-bottom:0}
 #auList:empty::before{content:"Run the audit to see counts per term."}
+#cxList:empty::before{content:"Run the finder to see terms.";display:block;padding:18px 8px;text-align:center;color:var(--mut);font-size:14px}
 .exr .au{display:block;font-size:13px;color:var(--mut)}
 div.smbox{border:1px solid var(--bd);border-radius:12px;background:var(--sf2);padding:10px 12px}
 details.box>summary{padding:10px 12px;min-height:44px;cursor:pointer;font-weight:600;font-size:14.5px;display:flex;align-items:center}
@@ -161,7 +162,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
 <body>
 <div class="app">
 <header class="top">
-  <div class="t"><h1>Bulk Replace<span class="ver">v5.6</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
+  <div class="t"><h1>Bulk Replace<span class="ver">v5.9</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
   <button id="hbtn" onclick="openHistory()" title="History of replace runs">History</button>
   <button class="icon" id="thm" onclick="cycleTheme()" aria-label="Change theme" title="Change theme">Auto</button>
 </header>
@@ -340,6 +341,14 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
       <label class="sw"><input type="checkbox" id="geHon">Has honorific (apply the honorific rules from Settings for this language)</label>
       <label class="sw"><input type="checkbox" id="geSwap">Swap name order (a 2-word wrong form such as Li Wei also finds Wei Li)</label>
       <div class="row">
+        <label>Chapters from<input type="number" id="geFrom" min="0" inputmode="numeric" placeholder="any"></label>
+        <label>Chapters to<input type="number" id="geTo" min="0" inputmode="numeric" placeholder="any"></label>
+      </div>
+      <div class="row">
+        <label>Match mode<select id="geMode"><option value="">Step 3 setting</option><option value="lit">Contains</option><option value="word">Whole word</option></select></label>
+        <label>Keep capitalization<select id="geKeep"><option value="">Step 3 setting</option><option value="on">On</option><option value="off">Off</option></select></label>
+      </div>
+      <div class="row">
         <button class="pri" onclick="geSave()">Save entry</button>
         <button onclick="geClose()">Cancel</button>
         <button class="stop" id="geDelB" onclick="geDel()">Delete</button>
@@ -443,6 +452,27 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
           <button class="sm" onclick="auExport('csv')">Download CSV</button>
           <button class="sm" onclick="auExport('txt')">Download .txt report</button>
         </div>
+      </div>
+    </details>
+    <details class="box" id="cxBox">
+      <summary>Find new terms and spelling variants (nothing is changed)</summary>
+      <div class="bd">
+        <p class="hint">Reads the files chosen above and lists capitalized names and phrases (1-3 words) that are not in your glossary yet. "Spelling variants" groups spellings that look like one name (Xiao Yan / Xiaoyan / Siao Yan); tap the correct one to add the pair. Stop keeps the partial result.</p>
+        <div class="row">
+          <input type="number" id="cxMin" min="1" value="3" inputmode="numeric" placeholder="Minimum count (e.g. 3)" aria-label="Minimum count">
+          <select id="cxView" aria-label="Show"><option value="c">New terms</option><option value="v">Spelling variants</option></select>
+        </div>
+        <button class="pri" id="cxRun" onclick="cxRun()">Find terms</button>
+        <p class="hint" id="cxInfo" role="status"></p>
+        <div class="exl" id="cxList"></div>
+        <details class="box">
+          <summary>Ignore words and Do-not-translate list</summary>
+          <div class="bd">
+            <label class="fl">Ignored words (spaces or commas)<textarea id="cxStop" autocomplete="off"></textarea></label>
+            <button class="sm" onclick="cxStopReset()">Reset ignored words</button>
+            <label class="fl">Do not translate (one term per line; hidden from the list)<textarea id="cxDnt" autocomplete="off"></textarea></label>
+          </div>
+        </details>
       </div>
     </details>
   </div>
@@ -848,7 +878,7 @@ function saveOpts() {
 /* ---------- parsing / scanning ---------- */
 function getMode() { const m = $('mode').value; return m === 'word' || m === 're' ? m : 'lit'; }
 function buildRe(p) {
-  const mode = getMode(), flex = $('flex').checked, ci = !$('c').checked;
+  const gm = getMode(), mode = gm !== 're' && p.opts && p.opts.mode ? p.opts.mode : gm, flex = $('flex').checked, ci = !$('c').checked;
   if (mode === 're') {
     try { return new RegExp(p.find, 'gu' + (ci ? 'i' : '')); } catch (e) { return new RegExp(p.find, 'g' + (ci ? 'i' : '')); }
   }
@@ -945,6 +975,34 @@ function expandRepl(repl, m) {
 }
 function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
+/* v5.9: optional trailing ` @{json}` on the right side = per-pair options {from,to,mode(lit|word),keep(bool)} */
+const META_RE = /(?:^|\s)@(\{[^{}]*\})\s*$/;
+function parseMeta(s) {
+  const m = s.match(META_RE); let o = null;
+  if (m) { try { o = JSON.parse(m[1]); } catch (e) { o = null; } }
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return {repl: s, opts: null, meta: ''};
+  const q = {}, ni = v => (Number.isFinite(v) && v >= 0 ? Math.floor(v) : null);
+  if (ni(o.from) !== null) q.from = ni(o.from);
+  if (ni(o.to) !== null) q.to = ni(o.to);
+  if (o.mode === 'lit' || o.mode === 'word') q.mode = o.mode;
+  if (typeof o.keep === 'boolean') q.keep = o.keep;
+  const has = Object.keys(q).length > 0;
+  return {repl: s.slice(0, m.index).trimEnd(), opts: has ? q : null, meta: has ? ' @' + JSON.stringify(q) : ''};
+}
+function pairTag(p) {
+  const o = p && p.opts; if (!o) return '';
+  const t = [];
+  if (o.from != null || o.to != null) t.push('ch ' + (o.from != null ? o.from : '..') + '-' + (o.to != null ? o.to : '..'));
+  if (o.mode) t.push(o.mode === 'word' ? 'whole word' : 'contains');
+  if (o.keep != null) t.push(o.keep ? 'keep case' : 'no keep case');
+  return t.length ? ' [' + t.join('; ') + ']' : '';
+}
+function pairIn(p, n) {
+  const o = p.opts; if (!o || (o.from == null && o.to == null)) return true;
+  if (n === null) return false;
+  return (o.from == null || n >= o.from) && (o.to == null || n <= o.to);
+}
+function pairKeep(p, kc) { return p.opts && p.opts.keep != null ? p.opts.keep : kc; }
 function parsePairs() {
   const pairs = [], bad = [], seen = new Set();
   for (const raw of $('pairs').value.split('\n')) {
@@ -953,10 +1011,10 @@ function parsePairs() {
     if (!t || t.startsWith('#')) continue;
     const i = line.indexOf('=>');
     if (i < 0) { if ($('fo').checked) { if (!seen.has(t)) { seen.add(t); pairs.push({find: t, repl: ''}); } } else bad.push(t); continue; }
-    const find = line.slice(0, i).trim(), repl = line.slice(i + 2).trim();
+    const find = line.slice(0, i).trim(), pm = parseMeta(line.slice(i + 2).trim()), repl = pm.repl;
     if (!find || seen.has(find)) continue;
     seen.add(find);
-    pairs.push({find, repl});
+    pairs.push({find, repl, opts: pm.opts, meta: pm.meta});
   }
   return {pairs, bad};
 }
@@ -1057,8 +1115,10 @@ async function scan() {
     const paras = [];
     collectParas(d.body && d.body.content, paras);
     const counts = pairs.map(() => 0), matches = [];
+    const nn = chNo(docs[i].name), okK = pairs.map(q => pairIn(q, nn));
     for (const p of paras) {
       for (let k = 0; k < pairs.length; k++) {
+        if (!okK[k]) continue;
         const re = res[k];
         re.lastIndex = 0;
         let m;
@@ -1068,7 +1128,7 @@ async function scan() {
           const ds = toDoc(p.segs, a), last = toDoc(p.segs, b - 1);
           const de = last === null ? null : last + 1;
           const ok = ds !== null && de !== null && de - ds === b - a;
-          matches.push({k, text: p.text, a, b, ds, de, ok, sel: ok, rep: fo ? null : keepCase(m[0], mode === 're' ? expandRepl(pairs[k].repl, m) : pairs[k].repl, kc)});
+          matches.push({k, text: p.text, a, b, ds, de, ok, sel: ok, rep: fo ? null : keepCase(m[0], mode === 're' ? expandRepl(pairs[k].repl, m) : pairs[k].repl, pairKeep(pairs[k], kc))});
           counts[k]++;
           if (!m[0].length) re.lastIndex++;
         }
@@ -1378,7 +1438,7 @@ function buildReport(r, label, rows, note) {
   if (note) L.push(note);
   L.push('');
   L.push('--- Pairs');
-  r.pairs.forEach((p, k) => L.push(`${k + 1}) ${r.fo ? p.find : p.find + ' => ' + p.repl}` + (rows ? ' : ' + rows[k] : '')));
+  r.pairs.forEach((p, k) => L.push(`${k + 1}) ${r.fo ? p.find : p.find + ' => ' + p.repl}` + pairTag(p) + (rows ? ' : ' + rows[k] : '')));
   L.push('');
   L.push('--- Files and lines  ([old => new])');
   for (const f of r.results) {
@@ -1428,7 +1488,7 @@ async function preview() {
     showSummary(
       `${r.fo ? 'Find only' : 'Preview'}: ${r.docs} docs checked, ${r.totalMatches} matches in ${r.results.length} files.${r.fo ? '' : ' Nothing has been changed yet.'}` + (r.stopped ? ` The scan was stopped early (${r.docs} of ${r.totalDocs} docs checked).` : '') +
       (r.rangeInfo ? '\n' + r.rangeInfo : ''),
-      r.pairs.map((p, k) => `${k + 1}) ${r.fo ? p.find : p.find + ' => ' + p.repl} : ${r.totals[k]} matches, ${r.fileCounts[k]} files`)
+      r.pairs.map((p, k) => `${k + 1}) ${r.fo ? p.find : p.find + ' => ' + p.repl}${pairTag(p)} : ${r.totals[k]} matches, ${r.fileCounts[k]} files`)
     );
     showResults(r, r.fo ? 'done' : 'review');
     $('rv').hidden = r.fo || !r.results.length;
@@ -1522,7 +1582,7 @@ async function replaceAll() {
     }
     const short = r.pairs.some(p => p.find.length < 3);
     const pw = pairWarnings().W.filter(w => !/very short|will be deleted/.test(w));
-    const adv = r.mode !== 'lit' || r.flex || r.smart || r.keep || r.pairs.some(p => p.find.includes(' | '));
+    const adv = r.mode !== 'lit' || r.flex || r.smart || r.keep || r.pairs.some(p => p.find.includes(' | ')) || r.pairs.some(p => p.opts);
     const msg = `Folder: ${r.folderNames.join(' | ')}\n\n${r.rangeInfo ? r.rangeInfo + '\n\n' : ''}${r.stopped ? 'The scan was stopped early: only ' + r.docs + ' of ' + r.totalDocs + ' docs were checked.\n\n' : ''}${r.totalMatches} matches in ${r.results.length} files, ${r.pairs.length} pairs.` +
       (short ? '\n\nWarning: some terms are very short and may also change other words.' : '') +
       (pw.length ? '\n\nPair check: ' + pw.length + ' warning' + (pw.length === 1 ? '' : 's') + '. First: ' + pw[0] + ' (see "Check pairs" in Step 2 for all of them.)' : '') +
@@ -1615,7 +1675,7 @@ function exportBackup() {
   let opts = {}, sel = [];
   try { opts = JSON.parse(store.get('opts', '{}')) || {}; } catch (e) {}
   try { sel = JSON.parse(store.get('sel', '[]')) || []; } catch (e) {}
-  const data = {cid: CLIENT_ID, root: ROOT_ID, draft: $('pairs').value, gloss: gloss(), opts, sel, selp: Object.fromEntries(selMap), profiles: profs(), glex: glexAll(), honor: honorAll(), theme: store.get('theme', 'auto')};
+  const data = {cid: CLIENT_ID, root: ROOT_ID, draft: $('pairs').value, gloss: gloss(), opts, sel, selp: Object.fromEntries(selMap), profiles: profs(), glex: glexAll(), honor: honorAll(), dnt: dntGet(), cxstop: cxStopText(), theme: store.get('theme', 'auto')};
   if ($('bkHist').checked) data.hist = getHist();
   const doc = {app: 'bulk-replace', version: 5, date: new Date().toISOString(), data};
   downloadFile('bulk-replace-backup-' + stamp() + '.json', JSON.stringify(doc, null, 2), 'application/json');
@@ -1678,6 +1738,9 @@ async function importBackup(inp) {
       store.set('glex', JSON.stringify(G));
     }
     if (d.honor && typeof d.honor === 'object' && !Array.isArray(d.honor)) { store.set('honor', JSON.stringify(honorClean(d.honor))); hoRender(); }
+    if (Array.isArray(d.dnt)) { store.set('dnt', JSON.stringify(d.dnt.filter(x => typeof x === 'string').slice(0, 5000))); }
+    if (typeof d.cxstop === 'string') store.set('cxstop', d.cxstop.slice(0, 20000));
+    cxLoadLists();
     refreshGloss();
     setStatus(`Backup restored (${names.length} glossaries merged` + (histN ? `, ${histN} history runs added` : '') + (exN ? `, ${exN} entry sets merged` : '') + `).` + (acct ? ' Settings changed, so reload the novel list.' : '') + (ok ? '' : ' Some data could not be saved (browser storage is blocked).'));
   } catch (e) { setStatus('Import failed: ' + e.message); }
@@ -1754,7 +1817,7 @@ function pairSwap() {
     const i = l.indexOf('=>');
     if (i < 0) { sk++; return l; }
     const f = l.slice(0, i).trim(), r = l.slice(i + 2).trim();
-    if (!f || !r || f.includes(' | ')) { sk++; return l; }
+    if (!f || !r || f.includes(' | ') || META_RE.test(r)) { sk++; return l; }
     n++; return r + ' => ' + f;
   });
   setPairs(out.join('\n'), `Swapped ${n} pairs` + (sk ? `; ${sk} lines skipped (empty side, " | " variants or no "=>")` : '') + '. Run Preview to undo a replacement.');
@@ -1830,7 +1893,7 @@ function saveLastRun(r, ok, failed) {
   if (!ok.length && !failed.length) return;
   store.set('lastRun', JSON.stringify({
     t: Date.now(), ids: ok.map(f => ({id: f.id, name: f.name})), failed,
-    pairs: r.pairs.map(p => ({find: p.find, repl: p.repl})), mode: r.mode, flex: !!r.flex, smart: !!r.smart, matchCase: !!r.matchCase
+    pairs: r.pairs.map(p => ({find: p.find, repl: p.repl, opts: p.opts || null})), mode: r.mode, flex: !!r.flex, smart: !!r.smart, matchCase: !!r.matchCase
   }));
   updateScopeHint();
 }
@@ -1845,7 +1908,7 @@ function undoFrom(lr) {
   if (lr.smart) return setStatus('Undo is not available for Smart matching runs (the matched spelling can differ from the term). Use Docs Version history.');
   const lines = []; let skipped = 0;
   for (const p of lr.pairs) {
-    if (!p.repl || p.find.includes(' | ') || p.repl === p.find) { skipped++; continue; }
+    if (!p.repl || p.find.includes(' | ') || p.repl === p.find || (p.opts && p.opts.keep)) { skipped++; continue; }
     lines.push(p.repl + ' => ' + p.find);
   }
   if (!lines.length) return setStatus('Nothing can be undone automatically (deletions and " | " variants cannot be reversed). Use Docs Version history.');
@@ -1875,7 +1938,7 @@ function saveHistory(r, label, failed) {
   }
   const run = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t: Date.now(), label,
-    pairs: r.pairs.map(p => ({find: p.find, repl: p.repl})), mode: r.mode, flex: !!r.flex, smart: !!r.smart, matchCase: !!r.matchCase,
+    pairs: r.pairs.map(p => ({find: p.find, repl: p.repl, opts: p.opts || null})), mode: r.mode, flex: !!r.flex, smart: !!r.smart, matchCase: !!r.matchCase,
     folderNames: r.folderNames, rec: r.rec, nf: r.nf || '', rangeInfo: r.rangeInfo || '', docs: r.docs,
     total, nfiles: r.results.length, files, trunc, failed: (failed || []).slice(0, 50)
   };
@@ -1907,7 +1970,7 @@ function viewRun(id) {
   const note = run.trunc ? `Only the first ${HMAX} matches of this run were saved.` : '';
   showSummary(`History: ${run.label}, ${new Date(run.t).toLocaleString()}\n${run.total} matches in ${run.nfiles} files.` + (note ? ' ' + note : '') +
     (run.failed.length ? `\n${run.failed.length} files failed: ` + run.failed.join('; ') : ''),
-    r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl} : ${r.totals[k]} matches in ${r.fileCounts[k]} files`));
+    r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl}${pairTag(p)} : ${r.totals[k]} matches in ${r.fileCounts[k]} files`));
   showResults(r, 'done');
   finishUI(buildReport(r, 'History: ' + run.label + ' (' + new Date(run.t).toLocaleString() + ')', r.pairs.map((p, k) => `${r.totals[k]} matches in ${r.fileCounts[k]} files`), note));
   vTop();
@@ -2279,6 +2342,14 @@ function glexClean(a) {
   });
 }
 /* entries -> normal pair lines (wrong variants joined by " | ") */
+function entryMeta(e) {
+  const q = {}, r = e.rules || {};
+  if (Number.isFinite(e.from)) q.from = e.from;
+  if (Number.isFinite(e.to)) q.to = e.to;
+  if (r.mode === 'lit' || r.mode === 'word') q.mode = r.mode;
+  if (r.keep === true || r.keep === false) q.keep = r.keep;
+  return Object.keys(q).length ? ' @' + JSON.stringify(q) : '';
+}
 function entriesToPairs(arr, hon) {
   const lines = []; let skipped = 0; hon = hon || honorAll();
   for (const e of arr || []) {
@@ -2288,7 +2359,7 @@ function entriesToPairs(arr, hon) {
       const low = new Set(w.map(x => x.toLowerCase()));
       w.slice().forEach(x => { const q = x.split(/\s+/); if (q.length === 2) { const y = q[1] + ' ' + q[0]; if (!low.has(y.toLowerCase())) { low.add(y.toLowerCase()); w.push(y); } } });
     }
-    const cor = String(e.correct || '').trim();
+    const cor = String(e.correct || '').trim(), meta = entryMeta(e);
     /* honorific lines go BEFORE the plain line (pairs run top to bottom) */
     if (e.rules && e.rules.honor && cor) {
       const HL = hon[e.lang] || [];
@@ -2302,10 +2373,10 @@ function entriesToPairs(arr, hon) {
         if (h.pos === 'p') wb.forEach(x => forms.push(h.t + (ascii ? ' ' : '') + x));
         else (ascii ? (wb.length <= 20 ? ['-', ' '] : ['-']) : ['']).forEach(sp => wb.forEach(x => forms.push(x + sp + h.t)));
         const rp = !tr ? cor : h.pos === 'p' ? tr + ' ' + cor : cor + (/^[-,.;:)]/.test(tr) ? '' : ' ') + tr;
-        lines.push(forms.join(' | ') + ' => ' + rp);
+        lines.push(forms.join(' | ') + ' => ' + rp + meta);
       }
     }
-    lines.push(w.join(' | ') + ' => ' + cor);
+    lines.push(w.join(' | ') + ' => ' + cor + meta);
   }
   return {text: lines.join('\n'), count: lines.length, skipped};
 }
@@ -2317,10 +2388,11 @@ function pairsToEntries(text) {
     if (!t || t.startsWith('#')) continue;
     const i = line.indexOf('=>');
     if (i < 0) continue;
-    const left = line.slice(0, i).trim(), correct = line.slice(i + 2).trim();
+    const left = line.slice(0, i).trim(), pm = parseMeta(line.slice(i + 2).trim()), correct = pm.repl, o = pm.opts || {};
     if (!left || seen.has(left)) continue;
     seen.add(left);
-    out.push(entryNew({wrong: left.split(' | ').map(x => x.trim()).filter(Boolean), correct}));
+    const rules = {}; if (o.mode) rules.mode = o.mode; if (o.keep != null) rules.keep = o.keep;
+    out.push(entryNew({wrong: left.split(' | ').map(x => x.trim()).filter(Boolean), correct, from: o.from, to: o.to, rules}));
   }
   return out;
 }
@@ -2398,6 +2470,8 @@ function geOpen(id) {
   $('geCor').value = e ? e.correct : ''; $('geLang').value = e ? e.lang : 'ja';
   $('geType').value = e ? e.type : 'name'; $('geNote').value = e ? e.note : '';
   $('geSwap').checked = !!(e && e.rules && e.rules.swap); $('geHon').checked = !!(e && e.rules && e.rules.honor);
+  $('geFrom').value = e && e.from != null ? e.from : ''; $('geTo').value = e && e.to != null ? e.to : '';
+  $('geMode').value = e && e.rules && e.rules.mode ? e.rules.mode : ''; $('geKeep').value = e && e.rules && e.rules.keep != null ? (e.rules.keep ? 'on' : 'off') : '';
   $('geDelB').hidden = !e; $('geEd').hidden = false;
   $('geEd').scrollIntoView({block: 'nearest', behavior: 'smooth'});
   $(e ? 'geCor' : 'geRaw').focus({preventScroll: true});
@@ -2411,11 +2485,17 @@ function geSave() {
   const lw = wrong.map(w => w.toLowerCase());
   const clash = list.find(x => x.id !== geEditId && x.wrong.some(w => lw.includes(w.toLowerCase())) && x.correct !== $('geCor').value.trim());
   if (clash && !confirm('A wrong form here is already used by another entry with a different correct term ("' + clash.correct + '"). Save anyway?')) return;
-  const data = {raw, wrong, correct: $('geCor').value, lang: $('geLang').value, type: $('geType').value, note: $('geNote').value.trim()};
+  const fv = $('geFrom').value.trim(), tv = $('geTo').value.trim();
+  const from = fv === '' ? null : parseInt(fv, 10), to = tv === '' ? null : parseInt(tv, 10);
+  if ((from !== null && !(from >= 0)) || (to !== null && !(to >= 0))) return setStatus('Chapter numbers must be 0 or more.');
+  if (from !== null && to !== null && from > to) return setStatus('"Chapters from" must not be larger than "Chapters to".');
+  const data = {raw, wrong, correct: $('geCor').value, lang: $('geLang').value, type: $('geType').value, note: $('geNote').value.trim(), from, to};
   const i = geEditId ? list.findIndex(x => x.id === geEditId) : -1;
   const rl = Object.assign({}, i >= 0 ? list[i].rules : {}); if ($('geSwap').checked) rl.swap = true; else delete rl.swap;
   if ($('geHon').checked) rl.honor = true; else delete rl.honor;
-  if (i >= 0) { const o = list[i]; list[i] = Object.assign(entryNew(data), {id: o.id, from: o.from, to: o.to, rawCh: o.rawCh, rules: rl}); }
+  if ($('geMode').value) rl.mode = $('geMode').value; else delete rl.mode;
+  if ($('geKeep').value) rl.keep = $('geKeep').value === 'on'; else delete rl.keep;
+  if (i >= 0) { const o = list[i]; list[i] = Object.assign(entryNew(data), {id: o.id, rawCh: o.rawCh, rules: rl}); }
   else list.push(entryNew(Object.assign(data, {rules: rl})));
   if (!glexSet(name, list)) return setStatus('Not saved (browser storage is blocked).');
   geClose(); renderEntries();
@@ -2693,7 +2773,7 @@ async function glossaryAudit() {
     info = pairs.map(p => {
       const vs = mode === 're' ? [p.find] : p.find.split(' | ').map(x => x.trim()).filter(Boolean);
       /* each variant as an anchored regex, to say which variant a match of the whole pair was */
-      const an = vs.length > 1 ? vs.map(v => { const r = buildRe({find: v}); return new RegExp('^(?:' + r.source + ')$', r.flags.replace('g', '')); }) : null;
+      const an = vs.length > 1 ? vs.map(v => { const r = buildRe({find: v, opts: p.opts}); return new RegExp('^(?:' + r.source + ')$', r.flags.replace('g', '')); }) : null;
       return {vs, an};
     });
   } catch (e) { return setStatus('Invalid pattern: ' + e.message); }
@@ -2702,13 +2782,14 @@ async function glossaryAudit() {
   try {
     const g = await gatherDocs();
     if (!g) return;
-    const T = pairs.map((p, k) => ({k, find: p.find, repl: p.repl, n: 0, files: 0, v: info[k].vs.map(() => 0), other: 0, nov: {}}));
+    const T = pairs.map((p, k) => ({k, find: p.find, repl: p.repl, meta: p.meta || '', n: 0, files: 0, v: info[k].vs.map(() => 0), other: 0, nov: {}}));
     const N = {};
     const pass = await textPass(g.docs, async (doc, paras) => {
       const nv = doc.nov || '(selected files)', nr = N[nv] = N[nv] || {docs: 0, files: 0, n: 0, terms: new Set()};
       nr.docs++;
-      const c = pairs.map(() => 0);
+      const c = pairs.map(() => 0), nn = chNo(doc.name), okK = pairs.map(q => pairIn(q, nn));
       for (const para of paras) for (let k = 0; k < pairs.length; k++) {
+        if (!okK[k]) continue;
         const re = res[k]; re.lastIndex = 0;
         let m;
         while ((m = re.exec(para.text))) {
@@ -2772,7 +2853,7 @@ $('auSort').addEventListener('change', auRender);
 async function auPreview(k) {
   if (busy || !auLast) return;
   const t = auLast.T[k], box = $('pairs'), keep = box.value;
-  box.value = t.find + ' => ' + t.repl;
+  box.value = t.find + ' => ' + t.repl + t.meta;
   $('fo').checked = true; $('fo').dispatchEvent(new Event('change')); saveOpts();
   try { await preview(); } finally { box.value = keep; }
   setStatus('Find only is on (turn it off before Replace). Your pairs list was not changed.');
@@ -2807,6 +2888,171 @@ function auExport(fmt) {
   if (a.failed.length) L.push('', '--- Docs that could not be read', ...a.failed);
   downloadFile(base + '.txt', L.join('\n') + '\n', 'text/plain');
   setStatus('Audit report downloaded.');
+}
+
+/* ---------- v5.7/v5.8: candidate extractor (S8) + spelling variants (S9). Read only, never writes. ---------- */
+const CX_STOP_DEF = 'The A An And But Or So If When While As At In On Of For To From By With Without He She It They We I You His Her Its Their Our My Your This That These Those There Here What Who Whom Whose Why How Which Where Then Now Yes No Not Do Does Did Is Are Was Were Be Been Am Have Has Had Will Would Can Could Should May Might Must Let Just Even Still Also Only Perhaps Maybe After Before Because Since Although Though Once Suddenly Chapter Mr Mrs Ms Miss Sir Some Every Each All Both Any Many Much More Most Such Very Too Indeed However Meanwhile Otherwise Please Thank Sorry Hello Well Oh Ah Hmm Huh Hey One Two Three';
+const CX_CAP = 20000, CX_TOK = /\p{Lu}[\p{L}\p{M}]*(?:[-'\u2019][\p{L}\p{M}]+)*/gu, CX_END = /[.!?\u2026"\u201C\u201D\u00AB\u00BB\u300C\u300D\u2014\u2013]$/;
+let cxLast = null;
+function cxStopText() { return store.get('cxstop', null) || CX_STOP_DEF; }
+function dntGet() { try { const a = JSON.parse(store.get('dnt', '[]')); return Array.isArray(a) ? a.filter(x => typeof x === 'string') : []; } catch (e) { return []; } }
+function cxLoadLists() { $('cxStop').value = cxStopText(); $('cxDnt').value = dntGet().join('\n'); }
+function cxStopSet() { return new Set(cxStopText().split(/[\s,]+/).map(x => x.trim().toLowerCase()).filter(Boolean)); }
+function cxStopReset() { store.set('cxstop', CX_STOP_DEF); cxLoadLists(); setStatus('Ignored words reset to the default list.'); }
+$('cxStop').addEventListener('input', () => store.set('cxstop', $('cxStop').value.slice(0, 20000)));
+$('cxDnt').addEventListener('input', () => store.set('dnt', JSON.stringify($('cxDnt').value.split('\n').map(x => x.trim()).filter(Boolean).slice(0, 5000))));
+cxLoadLists();
+function cxPrune(M) { for (const [k, x] of M) if (x.n < 2) M.delete(k); }
+function cxScanDoc(doc, paras, stop, M, di, st) {
+  for (const p of paras) {
+    const t = p.text, toks = []; let m; CX_TOK.lastIndex = 0;
+    while ((m = CX_TOK.exec(t))) {
+      const w = m[0].replace(/['\u2019]s$/, '').replace(/[-'\u2019]+$/, ''), low = w.toLowerCase();
+      const pre = t.slice(0, m.index).replace(/\s+$/, '');
+      toks.push({w, i: m.index, e: m.index + m[0].length, st: !pre || CX_END.test(pre),
+        bad: w.length < 2 || (w === w.toUpperCase() && w !== low) || stop.has(low) || stop.has(low.split(/['\u2019]/)[0])});
+    }
+    for (let a = 0; a < toks.length;) {
+      let b = a + 1;
+      while (b < toks.length && b - a < 8 && t.slice(toks[b - 1].e, toks[b].i) === ' ') b++;
+      for (let i = a; i < b; i++) for (let n = 1; n <= 3 && i + n <= b; n++) {
+        const f = toks[i], l = toks[i + n - 1];
+        if (f.bad || l.bad) continue;
+        const key = toks.slice(i, i + n).map(x => x.w).join(' ');
+        let x = M.get(key);
+        if (!x) {
+          if (M.size >= CX_CAP) { cxPrune(M); if (M.size >= CX_CAP) { st.capped = true; continue; } }
+          x = {n: 0, mid: 0, f: 0, l: -1, s: '', ss: true, d: doc.name}; M.set(key, x);
+        }
+        x.n++; if (!f.st) x.mid++;
+        if (x.l !== di) { x.l = di; x.f++; }
+        if (!x.s || (x.ss && !f.st)) { x.s = t.slice(Math.max(0, f.i - 40), Math.min(t.length, l.e + 40)).replace(/\s+/g, ' '); x.ss = f.st; x.d = doc.name; }
+      }
+      a = b;
+    }
+  }
+}
+async function cxRun() {
+  if (busy) return;
+  busy = true; stopFlag = false;
+  await keepAwake();
+  try {
+    const g = await gatherDocs();
+    if (!g) return;
+    const stop = cxStopSet(), M = new Map(), st = {capped: false}; let di = 0;
+    const pass = await textPass(g.docs, (doc, paras) => { cxScanDoc(doc, paras, stop, M, di++, st); }, 'Terms');
+    if (pass.stopped && !pass.done) { setStatus('Stopped.'); return; }
+    cxLast = {M, docs: pass.done, totalDocs: g.docs.length, stopped: pass.stopped, failed: pass.failed, capped: st.capped};
+    cxRender();
+    $('cxBox').open = true;
+    $('pg').hidden = true; setStatus('');
+  } catch (e) { setStatus('Error: ' + e.message); }
+  finally { busy = false; releaseAwake(); }
+}
+function cxKnown() {
+  const all = new Set(), wrong = new Set(), corr = new Set(), add = (S, x) => { x = String(x || '').trim(); if (x) { S.add(x); all.add(x.toLowerCase()); } };
+  const fromPair = (f, r) => { String(f).split(' | ').forEach(x => { add(wrong, x); }); add(corr, r); };
+  entriesGet(geName()).forEach(e => { e.wrong.forEach(x => add(wrong, x)); add(corr, e.correct); add(corr, e.raw); });
+  try { parsePairs().pairs.forEach(p => fromPair(p.find, p.repl)); } catch (e) {}
+  return {all, wrong, corr};
+}
+function cxKey(s) {
+  return s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[\s\-'\u2019\u2018\u02BC`\u00B4\u00AD\u2010-\u2012\u200B-\u200D\uFEFF]/g, '').replace(/ou|oo/g, 'o').replace(/([aeiu])\1/g, '$1');
+}
+function cxNear(a, b, d) {
+  if (Math.abs(a.length - b.length) > d) return false;
+  let prev = Array.from({length: b.length + 1}, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i]; let mn = i;
+    for (let j = 1; j <= b.length; j++) { const v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); cur.push(v); if (v < mn) mn = v; }
+    if (mn > d) return false;
+    prev = cur;
+  }
+  return prev[b.length] <= d;
+}
+/* clusters of spellings: same smart key, or key edit distance <= 1 (shorter key < 8 chars) / <= 2 (8+); keys under 4 chars are never merged */
+function cxClusters(min) {
+  const a = cxLast, kn = cxKnown(), dnt = new Set(dntGet().map(x => x.toLowerCase())), pool = new Map();
+  for (const [t, x] of a.M) if (x.n >= min && !dnt.has(t.toLowerCase())) pool.set(t, {t, n: x.n, f: x.f, g: false, w: false});
+  if (pool.size > 1200) [...pool.values()].sort((p, q) => q.n - p.n).slice(1200).forEach(x => pool.delete(x.t));
+  const gl = (S, fl) => S.forEach(t => { let x = pool.get(t); if (!x) { const m = a.M.get(t); x = {t, n: m ? m.n : 0, f: m ? m.f : 0, g: false, w: false}; pool.set(t, x); } x[fl] = true; });
+  gl(kn.wrong, 'w'); gl(kn.corr, 'g');
+  const byKey = new Map();
+  for (const x of pool.values()) { const k = cxKey(x.t); if (k.length < 4) continue; if (!byKey.has(k)) byKey.set(k, []); byKey.get(k).push(x); }
+  const keys = [...byKey.keys()], par = keys.map((_, i) => i), find = i => { while (par[i] !== i) { par[i] = par[par[i]]; i = par[i]; } return i; };
+  for (let i = 0; i < keys.length; i++) for (let j = i + 1; j < keys.length; j++) {
+    const k1 = keys[i], k2 = keys[j], d = Math.min(k1.length, k2.length) < 8 ? 1 : 2;
+    if (Math.abs(k1.length - k2.length) <= d && find(i) !== find(j) && cxNear(k1, k2, d)) par[find(i)] = find(j);
+  }
+  const G = new Map();
+  keys.forEach((k, i) => { const r = find(i); if (!G.has(r)) G.set(r, []); G.get(r).push(...byKey.get(k)); });
+  const out = [];
+  for (const forms of G.values()) {
+    if (forms.length < 2 || forms.every(x => x.g || x.w) || !forms.some(x => x.n > 0)) continue;
+    forms.sort((p, q) => q.n - p.n || p.t.localeCompare(q.t));
+    out.push({forms, tot: forms.reduce((s, x) => s + x.n, 0)});
+  }
+  return out.sort((p, q) => q.tot - p.tot);
+}
+function cxRender() {
+  const a = cxLast; if (!a) return;
+  const min = Math.max(1, parseInt($('cxMin').value, 10) || 1), box = $('cxList'); box.textContent = '';
+  let info = `${a.docs} of ${a.totalDocs} docs read, ${a.M.size} distinct terms.` + (a.stopped ? ' Stopped early: the counts are partial.' : '') + (a.capped ? ' Term limit reached: rare terms were dropped.' : '') + (a.failed.length ? ` ${a.failed.length} docs could not be read.` : '');
+  if ($('cxView').value === 'v') {
+    const C = cxClusters(min);
+    info += ` ${C.length} group${C.length === 1 ? '' : 's'} of similar spellings (count ${min}+ or in the glossary).`;
+    C.slice(0, 200).forEach((c, ci) => {
+      const r = el('div'); r.className = 'exr';
+      const h = el('span', c.forms.length + ' spellings, ' + c.tot + ' uses. Tap the correct one:'); h.className = 'rw'; h.style.display = 'block';
+      const row = el('div'); row.className = 'row';
+      c.forms.forEach(x => {
+        const b = el('button', x.t + ' (' + x.n + ')' + (x.g ? ' - glossary' : x.w ? ' - wrong' : '')); b.type = 'button'; b.className = 'sm';
+        b.addEventListener('click', () => icPick(c, x)); row.append(b);
+      });
+      r.append(h, row); box.append(r);
+    });
+    if (C.length > 200) { const m = el('div', (C.length - 200) + ' more groups: raise the minimum count to see fewer.'); m.className = 'exr more'; box.append(m); }
+  } else {
+    const kn = cxKnown(), dnt = new Set(dntGet().map(x => x.toLowerCase()));
+    const L = [...a.M].filter(([t, x]) => x.n >= min && !kn.all.has(t.toLowerCase()) && !dnt.has(t.toLowerCase()) && (t.includes(' ') || x.mid > 0)).sort((p, q) => q[1].n - p[1].n);
+    info += ` ${L.length} new term${L.length === 1 ? '' : 's'} seen ${min}+ times and not in the glossary.`;
+    L.slice(0, 300).forEach(([t, x]) => {
+      const r = el('div'); r.className = 'exr';
+      const l1 = el('div'); const w = el('span', t); w.className = 'ok'; l1.append(w, ` - ${x.n} time${x.n === 1 ? '' : 's'} in ${x.f} file${x.f === 1 ? '' : 's'}`);
+      const l2 = el('span', '...' + x.s + '... (' + x.d + ')'); l2.className = 'au';
+      const row = el('div'); row.className = 'row';
+      const b1 = el('button', 'Add to entries'), b2 = el('button', 'Do not translate');
+      b1.type = b2.type = 'button'; b1.className = b2.className = 'sm';
+      b1.addEventListener('click', () => cxAdd(t)); b2.addEventListener('click', () => cxDnt(t));
+      row.append(b1, b2); r.append(l1, l2, row); box.append(r);
+    });
+    if (L.length > 300) { const m = el('div', (L.length - 300) + ' more terms: raise the minimum count.'); m.className = 'exr more'; box.append(m); }
+  }
+  $('cxInfo').textContent = info;
+}
+$('cxView').addEventListener('change', cxRender);
+$('cxMin').addEventListener('change', cxRender);
+function cxAdd(t) {
+  $('geCard').open = true; geOpen(null); $('geCor').value = t; $('geLang').value = 'en'; $('geType').value = 'name';
+  setStatus('Add the wrong forms for "' + t + '" in the entry editor, then Save entry.'); $('geWrong').focus();
+}
+function cxDnt(t) {
+  const a = dntGet(); if (!a.some(x => x.toLowerCase() === t.toLowerCase())) a.push(t);
+  store.set('dnt', JSON.stringify(a)); cxLoadLists(); cxRender();
+  setStatus('"' + t + '" saved to the Do-not-translate list (hidden from this finder; protection during Replace is not wired yet).');
+}
+/* S9: one tap on the correct spelling adds `others => correct` to the entries and to the end of the pairs box */
+function icPick(c, x) {
+  if (x.w && !x.g) return setStatus('"' + x.t + '" is already a wrong form in the glossary. Pick another spelling.');
+  const wrong = c.forms.filter(f => f !== x && f.t.toLowerCase() !== x.t.toLowerCase()).map(f => f.t);
+  if (!wrong.length) return setStatus('Nothing to add: the other spellings only differ by capitals.');
+  const name = geName(), r = entriesMerge(entriesGet(name), [entryNew({wrong, correct: x.t, lang: 'en', type: 'name'})]);
+  if (!glexSet(name, r.list)) return setStatus('Not saved (browser storage is blocked).');
+  const line = wrong.join(' | ') + ' => ' + x.t, L = pairLines();
+  const i = L.findIndex(l => !isBlankOrNote(l) && l.indexOf('=>') >= 0 && keyOf(l) === wrong.join(' | '));
+  if (i >= 0) L[i] = line; else { while (L.length && !L[L.length - 1].trim()) L.pop(); L.push(line); }
+  setPairs(L.join('\n'), 'Added: ' + line + ' (entries and Step 2 pairs).');
+  renderEntries(); cxRender();
 }
 </script>
 </body>

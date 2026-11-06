@@ -1,10 +1,10 @@
-BULK REPLACE - MASTER HANDOFF  |  current: v5.6 (S1-S7 done)  |  plan: v5.0 -> v5.17
+BULK REPLACE - MASTER HANDOFF  |  current: v5.9 (S1-S10 done)  |  plan: v5.0 -> v5.17
 ==========================================================================
 This file is self-contained. HANDOFF.md = frozen legacy feature reference for v4.x (read only if a step says so).
 Mark steps [x] here when done and add a CHANGELOG line (see section 6).
 
 1. PROJECT SUMMARY
-- Single-file web app (index.html, ~2030 lines, 104 KB, vanilla JS, no build, no deps except Google GSI script).
+- Single-file web app (index.html, ~3060 lines, 166 KB, vanilla JS, no build, no deps except Google GSI script).
 - Hosted on GitHub Pages. User works from Android phone mostly. UI text is English.
 - Purpose: bulk-replace wrongly translated terms across 100+ Google Docs chapters per novel in Drive ("My Work" folder), via Drive API (drive.readonly) + Docs API (documents).
 - Docs contain ONLY translated text (English or similar). Languages in scope: JP/KR/CN/RU raw + English translation. NO Bengali-specific work anywhere in this plan (existing Bengali-safe code from v4.x stays untouched, nothing new added). Raw (JP/KR/CN/RU) can only be used if the user keeps raw chapters as Docs (S13+).
@@ -60,11 +60,30 @@ Mark steps [x] here when done and add a CHANGELOG line (see section 6).
 - CSV (UTF-8 BOM): Pair,Kind(pair|variant),Wrong,Correct,Novel(ALL or novel),Matches,Files; variant rows only for ALL. .txt report: header, Matching line, --- Pairs (with variants/novels lines), --- Novels, failed docs. Audit never sends a write request (GET only).
 - Not done: audit does not read entries directly (it audits the pairs in #pairs; load entries with "Use as pairs" first); no per-variant-per-novel counts.
 
+3g. ADDED IN v5.7 (S8) - candidate extractor
+- Step 3 card: <details class="box" id="cxBox"> after #auBox: #cxMin (min count, default 3), #cxView (c = New terms | v = Spelling variants), #cxRun, #cxInfo, #cxList (.exl, rows .exr), box with #cxStop (ignored words, store 'cxstop' text, default CX_STOP_DEF) + #cxDnt (Do-not-translate, one per line, store 'dnt' = JSON array of strings). Both keys are in backup (data.dnt, data.cxstop). Reset button cxStopReset().
+- Functions (end of script): cxRun (gatherDocs + textPass, label "Terms"), cxScanDoc (per paragraph: capitalized Latin tokens CX_TOK, runs joined by single spaces, all 1-3 word n-grams; first/last word must not be an ignored word, all-caps or 1 letter; counts n, mid (not at sentence start), f files, one sample line), cxPrune (drops count-1 terms at CX_CAP=20000 distinct terms; sets capped), cxKnown (glossary forms from entries of geName() + #pairs), cxRender, cxAdd(term) (opens the entry editor with Correct filled; wrong forms must be typed), cxDnt(term). Var cxLast = {M(Map term->{n,mid,f,s,d}), docs, totalDocs, stopped, failed, capped}.
+- List rule: single-word terms need at least one mid-sentence use (sentence-start capitals are ignored); multi-word terms do not. Top 300 shown.
+- Do-not-translate: stored and hidden from the finder only. It does NOT protect anything during Replace yet (S11 wires that).
+- Never writes to Docs (reads via textPass only).
+
+3h. ADDED IN v5.8 (S9) - spelling variants (same cxBox, view "Spelling variants", uses the last cxRun result)
+- cxKey(s) = NFD without marks, lowercase, separators removed, ou/oo -> o, doubled a/e/i/u -> single. cxClusters(min): pool = terms with n >= min (max 1200 by count) + glossary forms; union-find over keys: same key, or edit distance (cxNear, banded Levenshtein) <= 1 when the shorter key < 8 chars, <= 2 from 8 chars; keys under 4 chars never merge; groups fully made of glossary forms are hidden; 200 groups max, sorted by total uses.
+- icPick(cluster, form): one tap on the correct spelling -> entry {wrong: other spellings, correct, lang en, type name} merged into entries of geName() (entriesMerge) AND line `a | b => correct` added/updated at the end of #pairs. Refuses a form that is already a wrong form in the glossary. Groups update at once (resolved ones disappear).
+- Known noise: sub-phrases of one name can form their own group (Xiao / Siao next to Xiao Yan / Siao Yan).
+
+3i. ADDED IN v5.9 (S10) - per-pair options plumbing
+- Pairs text syntax: optional trailing ` @{json}` on the RIGHT side of => : {"from":N,"to":N,"mode":"lit|word","keep":true|false}. Parsed by parseMeta(s) (META_RE; invalid JSON or other keys = left as plain text). parsePairs() now returns pairs {find, repl, opts|null, meta}. Helpers: pairTag(p) (" [ch 1-200; whole word; keep case]" for reports), pairIn(p, chNo), pairKeep(p, globalKeep).
+- Behaviour: scan() and glossaryAudit() skip a pair for docs whose chNo is outside from..to (no chapter number = skipped when a range is set); buildRe(p) uses opts.mode (lit|word) instead of Step 3 mode unless Step 3 is regular-expression mode; keepCase uses opts.keep when set. replaceAll(): any pair with opts forces the match-by-match path (replaceAllText only when no pair has opts). Report, Preview summary and history view show the tag. lastRun/history pairs store opts; undoFrom skips pairs with keep:true (cannot reverse capitals), range/mode are not carried into the reverse pairs (the undo is limited to the changed files anyway).
+- Entries: entryMeta(e) adds the suffix in entriesToPairs (also on honorific lines) from e.from, e.to, e.rules.mode ('lit'|'word'), e.rules.keep (true|false); pairsToEntries parses it back. Editor fields #geFrom #geTo #geMode #geKeep (empty = Step 3 setting). CHANGE: entries imported earlier with From/To (CSV/JSON) now really restrict their pair when used as pairs.
+- pairSwap skips lines that carry @{...}. quickAdd rewriting an existing line drops its @{...}. auPreview keeps the suffix (t.meta).
+- Not done: rules.mode/keep not in CSV/JSON export (same as swap/honor); entry list rows do not show the range; capitalization/DNT/flags = S11; conditions = S12.
+
 3. KEY DATA SHAPES (v4.8, keep working)
 - Pairs text in textarea #pairs: lines `wrong => correct`; `#` = comment; variants on left: `a | b => c` (space-pipe-space, longest wins); no `=>` allowed only in Find-only (#fo).
 - parsePairs() -> {pairs:[{find,repl}], bad:[]}. Dedup by find.
 - Glossary: localStorage 'gloss' = JSON {name: pairsText}. Auto-load by novel-name match.
-- Other keys seen: theme, hist (runs), lastRun, sel/selp (novel ticks), cnt (doc counts), profiles, opts, draft, tsize. Check with grep "store.get('" before adding a key.
+- Other keys seen: dnt (JSON array), cxstop (text), theme, hist (runs), lastRun, sel/selp (novel ticks), cnt (doc counts), profiles, opts, draft, tsize. Check with grep "store.get('" before adding a key.
 - Match object (buildMatch): file, link, pair index, found, replacement, ctx before/after, ticked.
 - Docs read gives paragraphs; matching runs per paragraph text; offsets mapped to doc indexes via segs (toDoc). ANY new matching feature MUST match on the ORIGINAL paragraph text (expand the pattern, do not normalize the text) so offsets stay valid.
 - chNo(name) = chapter number from file name; used for range filter, reuse for raw<->translated mapping.
@@ -134,17 +153,17 @@ PHASE C - Audit and discovery (no AI)
     Goal: glossary audit + shared text-pass walker.
     Do: fn textPass(docs, perDocFn) built on gatherDocs/scan reading (reuse retry, speed, Stop, progress); "Glossary audit" button runs every wrong variant as find-only, report counts per term and per novel (table + CSV + .txt), tap term -> loads it into Find-only preview.
     Checks: Stop works with partial results; counts equal Preview counts for same pair; no writes sent.
-[ ] S8 (v5.7) BUILD M ~40%  (dep S7)
+[x] S8 (v5.7) BUILD M ~40%  DONE  (dep S7)
     Goal: candidate extractor (translated docs).
     Do: via textPass count frequent capitalized Latin words / romanized names / repeated word n-grams (Intl.Segmenter) not in glossary; list with counts + sample line; tap = add to entries (wrong empty, needs correct) or to Do-not-translate.
     Checks: stopword list small and editable; limits memory (cap 20k tokens); cancel works.
-[ ] S9 (v5.8) BUILD M ~40%  (dep S7,S4)
+[x] S9 (v5.8) BUILD M ~40%  DONE  (dep S7,S4)
     Goal: inconsistency finder.
     Do: cluster candidate/glossary spellings by smart-normalized key + edit distance <=2 (length-aware); show clusters (Xiao Yan / Xiaoyan / Siao Yan) with counts; pick the correct form -> adds `variants => correct` pair/entry with one tap.
     Checks: no merge of unrelated short words (min length 4); cluster list capped.
 
 PHASE D - Per-entry rules (touches the matching pipeline: do in order)
-[ ] S10 (v5.9) MODIFY M ~40%  (dep S1,S4)
+[x] S10 (v5.9) MODIFY M ~40%  DONE  (dep S1,S4)
     Goal: per-pair options plumbing + chapter range per entry + per-entry mode/keepcase.
     Do: pairs from entries carry opts {from,to,mode,keepcase}; pairs text syntax stays: add optional trailing `@{json}` metadata ONLY in generated lines or keep opts in a side array keyed by find; parsePairs returns opts; scan/applySelected/replaceAll honor: skip pair for docs whose chNo outside from..to; per-pair mode/keepcase override; plain pairs still use replaceAllText only when no pair has opts.
     Checks: pair 1-200 vs 201+ on mocked chapters; undo prep not broken; history/report show range.
@@ -197,9 +216,13 @@ PHASE G - Reports and maintenance
 - Playwright with mocked Google APIs was used in v4.x (suites not in this zip). For new steps, at minimum: node --check on extracted <script>, node unit tests for pure functions (smartPattern, entriesToPairs, transliterators), one mocked-DOM smoke test if Playwright is available.
 
 10. NEXT-CHAT KICKOFF LINE (copy exactly, change the step id each time)
-"Read HANDOFF.txt (uploaded). Do ONLY step S8 (next unchecked step). Patch index.html only, output changed files only, one step per chat, stop at 85% session (hard stop 90%), tick [x] and add CHANGELOG."
+"Read HANDOFF.txt (uploaded). Do ONLY step S11 (next unchecked step). Patch index.html only, output changed files only, one step per chat, stop at 85% session (hard stop 90%), tick [x] and add CHANGELOG."
 
 11. CHANGELOG
+v5.9 (S10) 2026-11-06: per-pair options via ` @{json}` suffix (chapter range, whole word/contains, keep capitalization), entry editor fields, pairs generated with suffix, range/mode/keep honoured by Preview, Replace (match-by-match), audit; tag shown in reports. Tests: node --check, no duplicate ids, Playwright mocked Docs 360+1280 light+dark (range 1-200 vs 250, per-pair whole word, keepcase on/off, audit == Preview, entry round trip, bad range message, 0 writes, 0 JS errors). NOT tested: real Docs, applySelected with mocked batchUpdate, undo prep with opts.
+v5.8 (S9) 2026-11-06: spelling variant groups (smart key + edit distance), one tap on the correct spelling adds the pair to entries and to #pairs. Tests: node/Playwright (Xiao Yan / Xiaoyan / Siao Yan group, resolved group disappears, wrong-form pick refused).
+v5.7 (S8) 2026-11-06: candidate extractor in Step 3 (capitalized 1-3 word terms not in glossary, counts, sample line, add to entries / Do-not-translate, editable ignore list, 20k term cap, Stop gives partial result). Tests: Playwright mocked Docs (counts, mid-sentence rule, stopwords, Stop partial 2/3, 0 writes).
+S8+S9+S10 were built in one chat at the user's request (overrides the one-step rule for this chat only).
 v5.6 (S7) 2026-11-06: glossary audit (Step 3 box): counts per pair, per variant and per novel, sort, tap a term -> Find only for that pair, CSV + .txt export; shared textPass walker; docs tagged with novel folder. Tests: node --check, no duplicate ids, Playwright mocked Drive/Docs at 360+1280 light+dark (audit totals/files == Preview totals for plain and smart+whole-word, 2 novels, variant split, zero-first sort, tap term keeps pairs box, CSV/txt, Stop gives partial result and unlocks UI, 0 write requests, no overflow, 0 JS errors); S4-S6 suites still pass. NOT tested: real Drive/Docs.
 v5.5 (S6) 2026-11-06: honorific rules per language (keep/translate/drop, suffix or prefix) in Settings, store 'honor' + backup, entry flag "Has honorific" expands to ordered pair lines; overlap rule in applySelected now = earlier pair wins. Tests: node cases (drop/translate/keep, prefix+suffix, CJK, swap+honorific, smart, already-honorific wrong forms, clean/defaults), node --check, no duplicate ids, Playwright 360+1280 light+dark (edit/add/reset rows, persistence after reload, language switch, backup holds honor, entry flag, no overflow, 0 JS errors). NOT tested: real Docs run, applySelected with mocked API.
 v5.4 (S5) 2026-11-06: smart matching B: diacritics (o = ō, é = e), long-vowel romanization (ō = ou/oo/ô/o, ū = uu/û/u, ā, ī, ē), entry flag "swap name order" (Li Wei | Wei Li) via entriesToPairs, sub-switches smDia/smRom. Tests: node cases (macron/circumflex/decomposed text+term, case modes, switches off, backtracking timing), node --check, no duplicate ids, Playwright 360+1280 light+dark (swap flag, option persistence, 0 JS errors, no overflow).
