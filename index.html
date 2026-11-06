@@ -143,6 +143,19 @@ ins{background:var(--in);color:var(--inf);text-decoration:none;padding:0 3px;bor
   </div>
 </details>
 
+<details class="card">
+  <summary>Backup and restore</summary>
+  <div class="bd">
+    <p class="hint">A backup file holds your settings, glossaries, current pairs and options. It never contains your login token, so it is safe to keep.</p>
+    <div class="row">
+      <button class="pri" onclick="exportBackup()">Export backup (.json)</button>
+      <button onclick="$('fBackup').click()">Import backup</button>
+    </div>
+    <input type="file" id="fBackup" accept=".json,application/json" hidden onchange="importBackup(this)">
+    <p class="hint" id="bkInfo"></p>
+  </div>
+</details>
+
 <details class="card" open>
   <summary><span class="n">1</span>Novels and folders</summary>
   <div class="bd">
@@ -165,6 +178,11 @@ ins{background:var(--in);color:var(--inf);text-decoration:none;padding:0 3px;bor
   <summary><span class="n">2</span>Term pairs</summary>
   <div class="bd">
     <textarea id="pairs" placeholder="One pair per line:&#10;wrong term => correct term&#10;another wrong => another correct&#10;# lines starting with # are ignored"></textarea>
+    <div class="row">
+      <button class="sm" onclick="exportPairs()">Export pairs (.txt)</button>
+      <button class="sm" onclick="$('fPairs').click()">Import pairs (.txt)</button>
+    </div>
+    <input type="file" id="fPairs" accept=".txt,.csv,text/plain" hidden onchange="importPairs(this)">
     <p class="hint">Format: <b>wrong =&gt; correct</b>. Leave the correct part empty to delete that word.</p>
     <details class="box">
       <summary>Glossary (save term lists per novel)</summary>
@@ -956,6 +974,104 @@ async function replaceAll() {
   } catch (e) { setStatus('Error: ' + e.message); }
   finally { busy = false; releaseAwake(); }
 }
+
+/* ---------- backup / restore / import / export ---------- */
+function stamp() { return new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-'); }
+function downloadFile(name, text, type) {
+  const b = new Blob([text], {type: type + ';charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b); a.download = name;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+function showBackupInfo() {
+  const t = store.get('lastBackup', '');
+  const d = t ? new Date(t) : null;
+  $('bkInfo').textContent = d && !isNaN(d) ? 'Last backup: ' + d.toLocaleString() : 'No backup made yet.';
+}
+function applyOpts(o) {
+  OPT_IDS.forEach(i => {
+    if (o[i] === undefined || o[i] === null) return;
+    const e = $(i);
+    if (e.type === 'checkbox') e.checked = !!o[i];
+    else e.value = (typeof o[i] === 'string' || typeof o[i] === 'number') ? String(o[i]) : '';
+  });
+}
+function exportBackup() {
+  let opts = {}, sel = [];
+  try { opts = JSON.parse(store.get('opts', '{}')) || {}; } catch (e) {}
+  try { sel = JSON.parse(store.get('sel', '[]')) || []; } catch (e) {}
+  const data = {cid: CLIENT_ID, root: ROOT_ID, draft: $('pairs').value, gloss: gloss(), opts, sel, theme: store.get('theme', 'auto')};
+  const doc = {app: 'bulk-replace', version: 4, date: new Date().toISOString(), data};
+  downloadFile('bulk-replace-backup-' + stamp() + '.json', JSON.stringify(doc, null, 2), 'application/json');
+  store.set('lastBackup', doc.date); showBackupInfo();
+  setStatus(`Backup exported (${Object.keys(data.gloss).length} glossaries).`);
+}
+async function importBackup(inp) {
+  const file = inp.files && inp.files[0];
+  inp.value = '';
+  if (!file) return;
+  try {
+    if (file.size > 5e6) throw new Error('the file is too large.');
+    let j;
+    try { j = JSON.parse((await file.text()).replace(/^\uFEFF/, '')); } catch (e) { throw new Error('the file is not valid JSON.'); }
+    if (!j || j.app !== 'bulk-replace' || !j.data || typeof j.data !== 'object') throw new Error('this is not a Bulk Replace backup file.');
+    const d = j.data;
+    const gl = d.gloss && typeof d.gloss === 'object' && !Array.isArray(d.gloss) ? d.gloss : {};
+    const names = Object.keys(gl).filter(k => typeof gl[k] === 'string');
+    const dt = j.date ? new Date(j.date) : null;
+    if (!confirm('Restore this backup' + (dt && !isNaN(dt) ? ' (made ' + dt.toLocaleString() + ')' : '') + '?\n\n' +
+      '- ' + names.length + ' glossaries will be merged (same names are overwritten)\n' +
+      '- Settings, current pairs and options will be replaced')) return;
+    const g = gloss();
+    names.forEach(k => { g[k] = gl[k]; });
+    let ok = store.set('gloss', JSON.stringify(g)), acct = false;
+    const c = typeof d.cid === 'string' ? d.cid.trim() : '', r = typeof d.root === 'string' ? fid(d.root) : '';
+    if (c && c !== CLIENT_ID) { CLIENT_ID = c; token = null; acct = true; ok = store.set('cid', c) && ok; }
+    if (r && r !== ROOT_ID) { ROOT_ID = r; acct = true; ok = store.set('root', r) && ok; }
+    $('cid').value = CLIENT_ID; $('root').value = ROOT_ID;
+    if (typeof d.draft === 'string') { $('pairs').value = d.draft; ok = store.set('draft', d.draft) && ok; }
+    if (d.opts && typeof d.opts === 'object') { applyOpts(d.opts); saveOpts(); }
+    if (THEMES.includes(d.theme)) { store.set('theme', d.theme); applyTheme(d.theme); }
+    if (Array.isArray(d.sel)) {
+      const ids = d.sel.filter(x => typeof x === 'string');
+      ok = store.set('sel', JSON.stringify(ids)) && ok;
+      if (acct) { $('list').textContent = ''; updateFolderSel(); }
+      else if (document.querySelector('#list > .node')) {
+        document.querySelectorAll('#list > .node > .nrow input.nv').forEach(cb => { cb.checked = ids.includes(cb.value); });
+        folderChanged();
+      }
+    }
+    refreshGloss();
+    setStatus(`Backup restored (${names.length} glossaries merged).` + (acct ? ' Settings changed, so reload the novel list.' : '') + (ok ? '' : ' Some data could not be saved (browser storage is blocked).'));
+  } catch (e) { setStatus('Import failed: ' + e.message); }
+}
+function exportPairs() {
+  const t = $('pairs').value;
+  if (!t.trim()) return setStatus('There are no pairs to export.');
+  const n = $('gname').value.trim().replace(/[\\\/:*?"<>|]+/g, '-').slice(0, 60);
+  downloadFile('pairs-' + (n ? n + '-' : '') + stamp() + '.txt', t, 'text/plain');
+  setStatus('Pairs exported.');
+}
+async function importPairs(inp) {
+  const file = inp.files && inp.files[0];
+  inp.value = '';
+  if (!file) return;
+  try {
+    if (file.size > 2e6) throw new Error('the file is too large.');
+    const txt = (await file.text()).replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').replace(/\n+$/, '');
+    if (!txt.trim()) throw new Error('the file is empty.');
+    const cur = $('pairs').value;
+    let out = txt, mode = 'Imported';
+    if (cur.trim() && !confirm('Replace the current pairs with the imported ones?\n\nOK = replace\nCancel = add them at the end')) {
+      out = cur.replace(/\n+$/, '') + '\n' + txt; mode = 'Added';
+    }
+    $('pairs').value = out; store.set('draft', out);
+    const {pairs, bad} = parsePairs();
+    setStatus(`${mode} ${pairs.length} pairs` + (bad.length ? `; ${bad.length} lines have no "=>" and will be rejected on Preview` : '') + '.');
+  } catch (e) { setStatus('Import failed: ' + e.message); }
+}
+showBackupInfo();
 </script>
 </body>
 </html>
