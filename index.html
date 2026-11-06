@@ -100,7 +100,7 @@ details.file>summary::after{content:"";flex:none;width:8px;height:8px;border-rig
 details.file[open]>summary::after{transform:rotate(-135deg)}
 details.file>.ln{margin:8px 10px}
 details.file>.ln:last-child{margin-bottom:12px}
-.ln{display:flow-root;padding:10px 12px;background:var(--sf2);border:1px solid var(--bd);border-radius:10px;word-break:break-word;font-size:14.5px;line-height:1.65}
+.ln{display:flow-root;padding:10px 12px;background:var(--sf2);border:1px solid var(--bd);border-radius:10px;word-break:break-word;font-size:var(--lnfs,14.5px);line-height:1.65}
 .ln input{float:left;margin:2px 10px 0 0}
 .tag{font-size:12px;font-weight:700;color:var(--ac);margin-right:6px}
 .warn{clear:both;font-size:12.5px;color:var(--er);margin-top:4px}
@@ -120,7 +120,25 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
 .hi .hm{color:var(--mut);font-size:13px;word-break:break-word}
 #hlist{max-height:420px;overflow:auto;overscroll-behavior:contain}
 #gsug:empty{display:none}
+.cnt{color:var(--mut);font-size:13px;margin-left:4px;white-space:nowrap}
+#log.err{color:var(--er);font-weight:600}
+#bApply2{background:var(--acs);color:var(--ac);border-color:var(--ac)}
 #pcount.bad{color:var(--er)}
+.exl{max-height:340px;overflow:auto;border:1px solid var(--bd);border-radius:12px;padding:6px 8px;background:var(--sf2);overscroll-behavior:contain}
+.exl:empty::before{content:"No entries yet. Load them from a saved glossary or from the current pairs.";display:block;padding:18px 8px;text-align:center;color:var(--mut);font-size:14px}
+.exr{padding:8px 4px;border-bottom:1px solid var(--bd);font-size:14.5px;word-break:break-word}
+.exr:last-child{border-bottom:0}
+.exr .rw{font-size:13px;color:var(--mut)}
+.exr .wr{color:var(--er)}
+.exr .ok{color:var(--inf);font-weight:600}
+.exr.more{color:var(--mut);font-size:13px}
+.exr[role=button]{cursor:pointer;border-radius:8px}
+.exr[role=button]:hover{background:var(--acs)}
+.exr .nt{font-size:13px;color:var(--mut);font-style:italic}
+.geed{display:grid;gap:10px;border:1px solid var(--bd);border-radius:12px;padding:12px;background:var(--sf2)}
+.geed textarea{min-height:90px}
+.geed label{font-size:13px;font-weight:600;color:var(--mut);display:grid;gap:4px}
+.gerev{margin:0;padding:8px 10px;border-radius:10px;background:var(--acs);font-size:14px;word-break:break-word}
 @media(min-width:980px){
 .app{padding-bottom:40px}
 .cols{grid-template-columns:minmax(0,5fr) minmax(0,6fr);align-items:start}
@@ -137,7 +155,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
 <body>
 <div class="app">
 <header class="top">
-  <div class="t"><h1>Bulk Replace<span class="ver">v4.5</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
+  <div class="t"><h1>Bulk Replace<span class="ver">v5.1</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
   <button id="hbtn" onclick="openHistory()" title="History of replace runs">History</button>
   <button class="icon" id="thm" onclick="cycleTheme()" aria-label="Change theme" title="Change theme">Auto</button>
 </header>
@@ -158,10 +176,27 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
     </label>
     <button class="pri" onclick="saveSettings()">Save settings</button>
     <p class="hint">Saved in this browser. Leave empty and save to use the default ID built into the code.</p>
+    <details class="box">
+      <summary>Profiles (switch Client ID and folder ID in one click)</summary>
+      <div class="bd">
+        <select id="prof" onchange="applyProf()"><option value="">-- saved profiles --</option></select>
+        <input type="text" id="pname" placeholder="Profile name (e.g. Main account)" autocomplete="off">
+        <div class="row">
+          <button class="sm" onclick="saveProf()">Save current IDs as profile</button>
+          <button class="sm" onclick="delProf()">Delete selected profile</button>
+        </div>
+        <p class="hint">Picking a profile switches to its Client ID and My Work folder ID at once; then reload the novel list. Profiles are included in the backup.</p>
+      </div>
+    </details>
     <div class="row">
       <button onclick="switchAccount()">Sign in with another Google account</button>
       <button onclick="logout()">Logout</button>
     </div>
+    <p class="hint" id="authInfo"></p>
+    <label class="fl">Text size of match lines
+      <select id="tsize"><option value="n">Normal</option><option value="l">Large</option><option value="xl">Extra large</option></select>
+    </label>
+    <p class="hint">Shortcuts on a computer: Ctrl+Enter = Preview, Esc = Stop.</p>
   </div>
 </details>
 
@@ -169,6 +204,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
   <summary id="bkSum">Backup and restore</summary>
   <div class="bd">
     <p class="hint">A backup file holds your settings, glossaries, current pairs and options. It never contains your login token, so it is safe to keep.</p>
+    <label class="sw"><input type="checkbox" id="bkHist">Include run history in the backup file</label>
     <div class="row">
       <button class="pri" onclick="exportBackup()">Export backup (.json)</button>
       <button onclick="$('fBackup').click()">Import backup</button>
@@ -189,6 +225,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
       <button class="sm" onclick="folderSel('none')">Folders: none</button>
       <button class="sm" onclick="folderSel('invert')">Folders: invert</button>
     </div>
+    <button class="sm" onclick="countNovels()">Count docs per novel</button>
     <div id="selbox" class="selbox none">No folder selected.</div>
     <div id="gsug" class="row"></div>
     <p class="hint">Only ticked folders (and their subfolders) are processed. Tap ▸ to see subfolders. Tap a chip to remove a folder. Your ticks, including subfolders, are remembered on this device.</p>
@@ -230,6 +267,9 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
           <button class="sm" onclick="pairNorm()">Fix separators</button>
           <button class="sm" onclick="undoPrepare()">Prepare undo of last run</button>
         </div>
+        <div class="row">
+          <button class="sm" onclick="pairUncomment()">Uncomment all pairs</button>
+        </div>
         <p class="hint">Check pairs warns about very short terms, duplicates, chains (a result that a later pair changes again) and invalid patterns. Swap sides turns every "wrong => correct" into "correct => wrong", which is the easiest way to undo a replacement. Fix separators turns tab, -&gt; and → into =&gt; (handy after pasting from a spreadsheet). Prepare undo of last run writes the reverse pairs of your last replace and limits the next run to the files it changed; then run Preview and untick anything that should stay.</p>
       </div>
     </details>
@@ -244,8 +284,54 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
           <button onclick="delGloss()">Delete</button>
         </div>
         <select id="gsel"></select>
+        <div class="row">
+          <button class="sm" onclick="exportGloss()">Export selected (.txt)</button>
+          <button class="sm" onclick="$('fGloss').click()">Import glossary (.txt)</button>
+        </div>
+        <input type="file" id="fGloss" accept=".txt,.csv,text/plain" hidden onchange="importGloss(this)">
+        <label class="sw"><input type="checkbox" id="autog">Auto-load the glossary named after the ticked novel</label>
       </div>
     </details>
+  </div>
+</details>
+
+<details class="card" id="geCard">
+  <summary>Glossary entries (raw terms)<span class="ver" id="geBadge">0</span></summary>
+  <div class="bd">
+    <p class="hint">Entries keep the raw term (JP / KR / CN / RU / EN) next to the wrong spellings and the correct term. They produce normal <code>wrong =&gt; correct</code> lines, so everything else works as before. Set used (the glossary name typed or selected in Step 2): <b id="geWho"></b></p>
+    <div class="row">
+      <button onclick="geLoad()">Load from glossary text</button>
+      <button class="pri" onclick="geUse()">Use as pairs</button>
+    </div>
+    <div class="row">
+      <button onclick="geOpen(null)">Add entry</button>
+      <button onclick="geSync()">Save to glossary text</button>
+      <button class="sm" onclick="geClear()">Clear entries</button>
+    </div>
+    <div class="geed" id="geEd" hidden>
+      <label>Raw term (JP / KR / CN / RU / EN, optional)<input type="text" id="geRaw" autocomplete="off"></label>
+      <label>Wrong forms (one per line)<textarea id="geWrong" autocomplete="off"></textarea></label>
+      <label>Correct term (empty = delete the wrong form)<input type="text" id="geCor" autocomplete="off"></label>
+      <div class="row">
+        <label>Language<select id="geLang"><option value="ja">Japanese</option><option value="ko">Korean</option><option value="zh">Chinese</option><option value="ru">Russian</option><option value="en">English</option><option value="other">Other</option></select></label>
+        <label>Type<select id="geType"><option value="name">Name</option><option value="skill">Skill</option><option value="place">Place</option><option value="title">Title</option><option value="other">Other</option></select></label>
+      </div>
+      <label>Note (optional)<input type="text" id="geNote" autocomplete="off"></label>
+      <div class="row">
+        <button class="pri" onclick="geSave()">Save entry</button>
+        <button onclick="geClose()">Cancel</button>
+        <button class="stop" id="geDelB" onclick="geDel()">Delete</button>
+      </div>
+    </div>
+    <input type="text" id="geQ" placeholder="Search raw, wrong, correct or note" autocomplete="off">
+    <div class="row">
+      <select id="geFL"><option value="">All languages</option><option value="ja">Japanese</option><option value="ko">Korean</option><option value="zh">Chinese</option><option value="ru">Russian</option><option value="en">English</option><option value="other">Other</option></select>
+      <select id="geFT"><option value="">All types</option><option value="name">Name</option><option value="skill">Skill</option><option value="place">Place</option><option value="title">Title</option><option value="other">Other</option></select>
+    </div>
+    <input type="text" id="geRev" placeholder="Reverse lookup: type a correct term" autocomplete="off">
+    <div class="gerev" id="geRevOut" hidden></div>
+    <div class="exl" id="geList"></div>
+    <p class="hint" id="geInfo"></p>
   </div>
 </details>
 
@@ -275,6 +361,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
     </label>
     <p class="hint" id="modeHint"></p>
     <label class="sw"><input type="checkbox" id="flex">Flexible spaces (a space in the term matches any run of spaces)</label>
+    <label class="sw"><input type="checkbox" id="keepcase">Keep capitalization (a capitalized match gets a capitalized replacement, ALL CAPS stays ALL CAPS; works best with Match case off)</label>
     <label class="sw"><input type="checkbox" id="fo">Find only (list matches, never change anything)</label>
     <label class="sw"><input type="checkbox" id="c" checked>Match case (uppercase/lowercase must match)</label>
     <label class="fl">Scan speed
@@ -291,12 +378,23 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
 <details class="card" id="hist">
   <summary id="hSum">History of runs</summary>
   <div class="bd">
-    <p class="hint">Every finished replace is saved on this device with the chapters and the matches that were changed. Open a run to see it again, save its report, prepare an undo, or delete it. History is not part of the backup file.</p>
+    <p class="hint">Every finished replace is saved on this device with the chapters and the matches that were changed. Open a run to see it again, save its report, prepare an undo, or delete it. History is only included in the backup file if you tick that option in Backup and restore.</p>
     <label class="sw"><input type="checkbox" id="histOn" checked>Save history of replace runs</label>
     <label class="fl">How many runs to keep
       <select id="hkeep"><option value="10">Last 10 runs</option><option value="20">Last 20 runs</option><option value="50">Last 50 runs</option></select>
     </label>
+    <input type="text" id="hq" placeholder="Search history (pair text, chapter name, date)..." autocomplete="off">
+    <select id="hdate" aria-label="Date filter">
+      <option value="0">Any date</option>
+      <option value="1">Today</option>
+      <option value="7">Last 7 days</option>
+      <option value="30">Last 30 days</option>
+    </select>
+    <div id="hinfo" class="hint"></div>
     <div id="hlist"></div>
+    <button onclick="$('fRep').click()">Prepare undo from a saved report (.txt)</button>
+    <input type="file" id="fRep" accept=".txt,text/plain" hidden onchange="undoFromReport(this)">
+    <p class="hint">Works with reports saved by "Save report" or from a history run, for finished replaces only.</p>
     <button class="stop" onclick="clearHist()">Clear all history</button>
   </div>
 </details>
@@ -310,6 +408,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
   <div class="row">
     <button class="pri" id="bPrev" onclick="preview()">Preview and review</button>
     <button id="bAll" onclick="replaceAll()">Replace all</button>
+    <button id="bApply2" onclick="applySelected()" hidden>Replace ticked</button>
     <button class="stop" id="bStop" onclick="stopFlag=true" hidden>Stop</button>
   </div>
 </div>
@@ -395,7 +494,7 @@ const DEFAULTS = {
 const SCOPE = 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/documents';
 const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const setStatus = m => { $('log').textContent = m; };
+const setStatus = m => { const l = $('log'); l.textContent = m; l.className = /^(Error|Invalid|Import failed|Login|Network|No docs|Tick at least|Write at least|This line has no|Not saved)/.test(m) || /failed/i.test(m) ? 'err' : ''; };
 
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } },
@@ -406,6 +505,7 @@ const fid = s => { s = (s || '').trim(); const m = s.match(/folders\/([A-Za-z0-9
 let CLIENT_ID = store.get('cid', DEFAULTS.cid) || DEFAULTS.cid;
 let ROOT_ID = store.get('root', DEFAULTS.root) || DEFAULTS.root;
 let token = null, stopFlag = false, lastReport = '', wl = null, lastScan = null;
+let tokenExp = 0;
 let selMap = new Map();
 (function () {
   try {
@@ -418,11 +518,13 @@ Object.defineProperty(window, 'busy', {
   get() { return _busy; },
   set(v) {
     _busy = !!v;
-    ['bPrev', 'bAll', 'bApply'].forEach(i => { const e = $(i); if (e) e.disabled = _busy; });
+    ['bPrev', 'bAll', 'bApply', 'bApply2'].forEach(i => { const e = $(i); if (e) e.disabled = _busy; });
     $('bStop').hidden = !_busy;
     if (!_busy) $('pg').hidden = true;
   }
 });
+
+window.addEventListener('beforeunload', e => { if (_busy) { e.preventDefault(); e.returnValue = ''; } });
 
 /* theme: auto / light / dark */
 const THEMES = ['auto', 'light', 'dark'];
@@ -460,7 +562,7 @@ function login(promptVal) {
   return new Promise((res, rej) => {
     google.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID, scope: SCOPE,
-      callback: t => t && t.access_token ? (token = t.access_token, res()) : rej(new Error('Login fail')),
+      callback: t => t && t.access_token ? (token = t.access_token, tokenExp = Date.now() + ((t.expires_in || 3600) * 1000), updateAuth(), res()) : rej(new Error('Login fail')),
       error_callback: e => rej(new Error('Login failed (' + ((e && e.type) || 'popup closed or blocked') + ')'))
     }).requestAccessToken(promptVal ? {prompt: promptVal} : {});
   });
@@ -468,7 +570,14 @@ function login(promptVal) {
 
 async function api(url, opt = {}, retry = true) {
   for (let i = 0; i < 5; i++) {
-    const r = await fetch(url, {...opt, headers: {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json'}});
+    const idem = !opt.method || opt.method === 'GET';
+    let r;
+    try { r = await fetch(url, {...opt, headers: {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json'}}); }
+    catch (e) {
+      if (idem && i < 3) { setStatus(`Network problem, retrying (${i + 1}/3)...`); await sleep(3000 * (i + 1)); continue; }
+      throw new Error('Network error. Check your connection and try again.');
+    }
+    if (idem && r.status >= 500 && i < 3) { setStatus(`Google server error ${r.status}, retrying (${i + 1}/3)...`); await sleep(3000 * (i + 1)); continue; }
     if (r.status === 429) { setStatus('Rate limit reached, waiting 30s...'); await sleep(30000); continue; }
     if (r.status === 401 && retry) { token = null; await login(); return api(url, opt, false); }
     if (!r.ok) throw new Error(await r.text());
@@ -507,6 +616,7 @@ function makeNode(f, path) {
   if (selMap.has(f.id)) { cb.checked = true; selMap.set(f.id, path); }
   lab.append(cb, f.name);
   row.append(tg, lab);
+  { const c = getCounts()[f.id]; if (c !== undefined) setBadge(node, c, lab); }
   const kids = document.createElement('div');
   kids.className = 'kids'; kids.hidden = true;
   node.append(row, kids);
@@ -583,6 +693,7 @@ $('list').addEventListener('change', e => {
   const cb = e.target;
   if (cb && cb.classList && cb.classList.contains('nv')) { if (cb.checked) selMap.set(cb.value, cb.dataset.path); else selMap.delete(cb.value); }
   folderChanged();
+  if (cb && cb.classList && cb.classList.contains('nv') && cb.checked) autoGloss();
 });
 function filterNovels() {
   const q = $('nq').value.trim().toLowerCase();
@@ -608,7 +719,7 @@ async function listDocs(folder, recursive) {
 /* ---------- glossary ---------- */
 function gloss() { try { return JSON.parse(store.get('gloss', '{}')) || {}; } catch (e) { return {}; } }
 function refreshGloss() {
-  setTimeout(updateGlossSug, 0);
+  setTimeout(updateGlossSug, 0); setTimeout(() => { if (typeof renderEntries === 'function') renderEntries(); }, 0);
   const sel = $('gsel');
   sel.innerHTML = '<option value="">-- saved glossaries --</option>';
   for (const k of Object.keys(gloss()).sort()) {
@@ -630,6 +741,7 @@ function loadGloss() {
   $('pairs').value = gloss()[k] || ''; $('gname').value = k;
   store.set('draft', $('pairs').value);
   setStatus(`Glossary "${k}" loaded.`);
+  if (typeof renderEntries === 'function') renderEntries();
 }
 function delGloss() {
   const k = $('gsel').value;
@@ -642,7 +754,7 @@ function delGloss() {
 refreshGloss();
 
 /* ---------- remember options ---------- */
-const OPT_IDS = ['c', 'rec', 'nfilter', 'rfrom', 'rto', 'extra', 'mode', 'flex', 'speed'];
+const OPT_IDS = ['c', 'rec', 'nfilter', 'rfrom', 'rto', 'extra', 'mode', 'flex', 'speed', 'keepcase'];
 function saveOpts() {
   const o = {};
   OPT_IDS.forEach(i => { const e = $(i); o[i] = e.type === 'checkbox' ? e.checked : e.value; });
@@ -671,6 +783,13 @@ function buildRe(p) {
   let src = alts.map(a => { const e = escapeRegExp(a); return flex ? e.replace(/\s+/g, '\\s+') : e; }).join('|');
   if (mode === 'word') return new RegExp('(?<![\\p{L}\\p{N}\\p{M}_])(?:' + src + ')(?![\\p{L}\\p{N}\\p{M}_])', 'gu' + (ci ? 'i' : ''));
   return new RegExp(alts.length > 1 ? '(?:' + src + ')' : src, 'g' + (ci ? 'i' : ''));
+}
+function keepCase(src, rep, on) {
+  if (!on || !rep || !src) return rep;
+  const up = src.toUpperCase(), low = src.toLowerCase();
+  if (src.length > 1 && src === up && src !== low) return rep.toUpperCase();
+  if (src[0] !== src[0].toLowerCase()) return rep[0].toUpperCase() + rep.slice(1);
+  return rep;
 }
 function expandRepl(repl, m) {
   return repl.replace(/\$(\d{1,2}|&|\$)/g, (x, g) => g === '$' ? '$' : g === '&' ? m[0] : (m[+g] !== undefined ? m[+g] : ''));
@@ -774,16 +893,16 @@ async function scan() {
   if (!pairs.length) { setStatus('Write at least one "wrong => correct" line.'); return null; }
   let res;
   try { res = pairs.map(p => buildRe(p)); } catch (e) { setStatus('Invalid pattern: ' + e.message); return null; }
-  const mode = getMode(), fo = $('fo').checked;
+  const mode = getMode(), fo = $('fo').checked, kc = $('keepcase').checked;
   const g = await gatherDocs();
   if (!g) return null;
   const {docs, rangeInfo, folders, scoped, sc, rec, nf} = g;
   const matchCase = $('c').checked;
   const results = [];
   const totals = pairs.map(() => 0), fileCounts = pairs.map(() => 0);
-  let totalMatches = 0;
+  let totalMatches = 0, stopped = false, scanned = docs.length;
   for (let i = 0; i < docs.length; i++) {
-    if (stopFlag) { setStatus('Stopped.'); return null; }
+    if (stopFlag) { stopped = true; scanned = i; stopFlag = false; break; }
     setStatus(`Scan: ${i + 1}/${docs.length}`); progress(i + 1, docs.length);
     const d = await api(`https://docs.googleapis.com/v1/documents/${docs[i].id}?fields=revisionId,body`);
     const paras = [];
@@ -800,7 +919,7 @@ async function scan() {
           const ds = toDoc(p.segs, a), last = toDoc(p.segs, b - 1);
           const de = last === null ? null : last + 1;
           const ok = ds !== null && de !== null && de - ds === b - a;
-          matches.push({k, text: p.text, a, b, ds, de, ok, sel: ok, rep: fo ? null : (mode === 're' ? expandRepl(pairs[k].repl, m) : pairs[k].repl)});
+          matches.push({k, text: p.text, a, b, ds, de, ok, sel: ok, rep: fo ? null : keepCase(m[0], mode === 're' ? expandRepl(pairs[k].repl, m) : pairs[k].repl, kc)});
           counts[k]++;
           if (!m[0].length) re.lastIndex++;
         }
@@ -814,7 +933,8 @@ async function scan() {
     }
     await sleep(readDelay());
   }
-  return {docs: docs.length, results, totalMatches, pairs, totals, fileCounts, matchCase, mode, flex: $('flex').checked, fo,
+  if (stopped && !scanned) { setStatus('Stopped.'); return null; }
+  return {docs: scanned, totalDocs: docs.length, stopped, keep: kc, results, totalMatches, pairs, totals, fileCounts, matchCase, mode, flex: $('flex').checked, fo,
     folderNames: scoped ? ['(files from ' + (sc === 'last' ? 'the last run' : 'the failed list') + ')'] : folders.map(f => f.path), rec, nf, rangeInfo};
 }
 
@@ -1018,6 +1138,9 @@ function updateSelInfo() {
   for (const f of lastScan.results) for (const m of f.matches) { if (m.ok) tot++; if (m.sel && m.ok) sel++; }
   $('selinfo').textContent = `Selected: ${sel} / ${tot} matches (unticked matches will not be replaced)`;
   syncFileBoxes();
+  const b2 = $('bApply2');
+  b2.hidden = !(lastScan && !lastScan.fo && !$('rv').hidden);
+  b2.textContent = `Replace ticked (${sel})`;
 }
 
 function eachMatch(fn) {
@@ -1080,7 +1203,7 @@ function logout() {
   token = null;
   $('list').textContent = '';
   updateFolderSel();
-  setStatus('Signed out.');
+  updateAuth(); setStatus('Signed out.');
 }
 
 function showSummary(head, rows) {
@@ -1098,7 +1221,7 @@ function buildReport(r, label, rows, note) {
   L.push('Time: ' + new Date().toLocaleString());
   L.push('Mode: ' + label);
   L.push('Case match: ' + (r.matchCase ? 'yes' : 'no'));
-  L.push('Matching: ' + ({lit: 'contains', word: 'whole word', re: 'regular expression'}[r.mode] || 'contains') + (r.flex ? ', flexible spaces' : '') + (r.fo ? ', find only' : ''));
+  L.push('Matching: ' + ({lit: 'contains', word: 'whole word', re: 'regular expression'}[r.mode] || 'contains') + (r.flex ? ', flexible spaces' : '') + (r.fo ? ', find only' : '') + (r.keep ? ', keep capitalization' : ''));
   L.push('Folder: ' + r.folderNames.join(' | '));
   L.push('Include subfolders: ' + (r.rec ? 'yes' : 'no') + (r.nf ? '; name filter: ' + r.nf : ''));
   if (r.rangeInfo) L.push(r.rangeInfo);
@@ -1138,7 +1261,7 @@ function exportReport() {
 
 function resetOut() {
   $('sum').textContent = ''; $('res').textContent = '';
-  $('exp').hidden = true; $('rv').hidden = true; $('tb').hidden = true;
+  $('exp').hidden = true; $('rv').hidden = true; $('tb').hidden = true; $('bApply2').hidden = true;
   V.r = null; V.list = [];
   lastReport = ''; lastScan = null;
 }
@@ -1154,7 +1277,7 @@ async function preview() {
     lastScan = r;
     fillPairSel(r);
     showSummary(
-      `${r.fo ? 'Find only' : 'Preview'}: ${r.docs} docs checked, ${r.totalMatches} matches in ${r.results.length} files.${r.fo ? '' : ' Nothing has been changed yet.'}` +
+      `${r.fo ? 'Find only' : 'Preview'}: ${r.docs} docs checked, ${r.totalMatches} matches in ${r.results.length} files.${r.fo ? '' : ' Nothing has been changed yet.'}` + (r.stopped ? ` The scan was stopped early (${r.docs} of ${r.totalDocs} docs checked).` : '') +
       (r.rangeInfo ? '\n' + r.rangeInfo : ''),
       r.pairs.map((p, k) => `${k + 1}) ${r.fo ? p.find : p.find + ' => ' + p.repl} : ${r.totals[k]} matches, ${r.fileCounts[k]} files`)
     );
@@ -1225,7 +1348,7 @@ async function applySelected(auto) {
       r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl} : ${rows[k]}`)
     );
     showResults(r2, 'done');
-    $('rv').hidden = true;
+    $('rv').hidden = true; $('bApply2').hidden = true;
     lastScan = null;
     saveHistory(r2, auto ? 'Replace (all, match by match)' : 'Replace (ticked matches)', failed);
     finishUI(buildReport(r2, 'Replace (ticked matches)', rows, failed.length ? 'Failed: ' + failed.join('; ') : ''));
@@ -1247,9 +1370,11 @@ async function replaceAll() {
       return;
     }
     const short = r.pairs.some(p => p.find.length < 3);
-    const adv = r.mode !== 'lit' || r.flex || r.pairs.some(p => p.find.includes(' | '));
-    const msg = `Folder: ${r.folderNames.join(' | ')}\n\n${r.rangeInfo ? r.rangeInfo + '\n\n' : ''}${r.totalMatches} matches in ${r.results.length} files, ${r.pairs.length} pairs.` +
+    const pw = pairWarnings().W.filter(w => !/very short|will be deleted/.test(w));
+    const adv = r.mode !== 'lit' || r.flex || r.keep || r.pairs.some(p => p.find.includes(' | '));
+    const msg = `Folder: ${r.folderNames.join(' | ')}\n\n${r.rangeInfo ? r.rangeInfo + '\n\n' : ''}${r.stopped ? 'The scan was stopped early: only ' + r.docs + ' of ' + r.totalDocs + ' docs were checked.\n\n' : ''}${r.totalMatches} matches in ${r.results.length} files, ${r.pairs.length} pairs.` +
       (short ? '\n\nWarning: some terms are very short and may also change other words.' : '') +
+      (pw.length ? '\n\nPair check: ' + pw.length + ' warning' + (pw.length === 1 ? '' : 's') + '. First: ' + pw[0] + ' (see "Check pairs" in Step 2 for all of them.)' : '') +
       (adv ? '\n\nThis matching mode is applied match by match (a bit slower). Complex spots are skipped.' : '') +
       (r.pairs.length > 1 ? '\n\nPairs are applied one by one from top to bottom.' : '') +
       '\n\nReplace ALL matches? (To pick matches one by one, use Preview and review.)';
@@ -1339,8 +1464,9 @@ function exportBackup() {
   let opts = {}, sel = [];
   try { opts = JSON.parse(store.get('opts', '{}')) || {}; } catch (e) {}
   try { sel = JSON.parse(store.get('sel', '[]')) || []; } catch (e) {}
-  const data = {cid: CLIENT_ID, root: ROOT_ID, draft: $('pairs').value, gloss: gloss(), opts, sel, selp: Object.fromEntries(selMap), theme: store.get('theme', 'auto')};
-  const doc = {app: 'bulk-replace', version: 4, date: new Date().toISOString(), data};
+  const data = {cid: CLIENT_ID, root: ROOT_ID, draft: $('pairs').value, gloss: gloss(), opts, sel, selp: Object.fromEntries(selMap), profiles: profs(), glex: glexAll(), theme: store.get('theme', 'auto')};
+  if ($('bkHist').checked) data.hist = getHist();
+  const doc = {app: 'bulk-replace', version: 5, date: new Date().toISOString(), data};
   downloadFile('bulk-replace-backup-' + stamp() + '.json', JSON.stringify(doc, null, 2), 'application/json');
   store.set('lastBackup', doc.date); showBackupInfo();
   setStatus(`Backup exported (${Object.keys(data.gloss).length} glossaries).`);
@@ -1360,6 +1486,7 @@ async function importBackup(inp) {
     const dt = j.date ? new Date(j.date) : null;
     if (!confirm('Restore this backup' + (dt && !isNaN(dt) ? ' (made ' + dt.toLocaleString() + ')' : '') + '?\n\n' +
       '- ' + names.length + ' glossaries will be merged (same names are overwritten)\n' +
+      (d.glex && typeof d.glex === 'object' ? '- ' + Object.keys(d.glex).length + ' entry sets will be merged\n' : '') +
       '- Settings, current pairs and options will be replaced')) return;
     const g = gloss();
     names.forEach(k => { g[k] = gl[k]; });
@@ -1379,8 +1506,28 @@ async function importBackup(inp) {
       if (acct) $('list').textContent = '';
       folderChanged();
     }
+    if (d.profiles && typeof d.profiles === 'object' && !Array.isArray(d.profiles)) {
+      const P = profs();
+      for (const k of Object.keys(d.profiles)) { const v = d.profiles[k]; if (v && typeof v.cid === 'string' && typeof v.root === 'string') P[k] = {cid: v.cid, root: fid(v.root)}; }
+      store.set('profiles', JSON.stringify(P)); refreshProf();
+    }
+    let histN = 0;
+    if (Array.isArray(d.hist)) {
+      const have = getHist(), ids = new Set(have.map(x => x.id));
+      const add = d.hist.filter(x => x && typeof x.id === 'string' && !ids.has(x.id) && typeof x.t === 'number' && Array.isArray(x.files) && Array.isArray(x.pairs) && typeof x.label === 'string')
+        .map(x => ({...x, failed: Array.isArray(x.failed) ? x.failed : []}));
+      histN = add.length;
+      const all = have.concat(add).sort((a, b) => b.t - a.t).slice(0, parseInt($('hkeep').value, 10) || 20);
+      if (histN) { store.set('hist', JSON.stringify(all)); renderHistory(); }
+    }
+    let exN = 0;
+    if (d.glex && typeof d.glex === 'object' && !Array.isArray(d.glex)) {
+      const G = glexAll();
+      for (const k of Object.keys(d.glex)) { const a = glexClean(d.glex[k]); if (a) { G[k] = a; exN++; } }
+      store.set('glex', JSON.stringify(G));
+    }
     refreshGloss();
-    setStatus(`Backup restored (${names.length} glossaries merged).` + (acct ? ' Settings changed, so reload the novel list.' : '') + (ok ? '' : ' Some data could not be saved (browser storage is blocked).'));
+    setStatus(`Backup restored (${names.length} glossaries merged` + (histN ? `, ${histN} history runs added` : '') + (exN ? `, ${exN} entry sets merged` : '') + `).` + (acct ? ' Settings changed, so reload the novel list.' : '') + (ok ? '' : ' Some data could not be saved (browser storage is blocked).'));
   } catch (e) { setStatus('Import failed: ' + e.message); }
 }
 function exportPairs() {
@@ -1457,9 +1604,8 @@ function pairSwap() {
   });
   setPairs(out.join('\n'), `Swapped ${n} pairs` + (sk ? `; ${sk} lines skipped (empty side, " | " variants or no "=>")` : '') + '. Run Preview to undo a replacement.');
 }
-function pairCheck() {
+function pairWarnings() {
   const {pairs, bad} = parsePairs(), W = [], mode = getMode();
-  if (!pairs.length && !bad.length) return setStatus('Write some pairs first.');
   bad.forEach(b => W.push('No "=>" in this line: ' + b));
   const seen = new Map();
   for (const l of pairLines()) {
@@ -1481,6 +1627,12 @@ function pairCheck() {
         W.push(`Pair ${n} produces "${q.find}", which pair ${j + 1} changes again when you use Replace all.`);
     });
   });
+  return {pairs, bad, W};
+}
+function pairCheck() {
+  const {pairs, bad} = parsePairs();
+  if (!pairs.length && !bad.length) return setStatus('Write some pairs first.');
+  const {W} = pairWarnings();
   showSummary(W.length ? `Pair check: ${pairs.length} pairs, ${W.length} warnings` : `Pair check: ${pairs.length} pairs, no problems found`, W);
   setStatus(W.length ? `${W.length} warnings found. See the result panel.` : 'No problems found.');
   $('sum').scrollIntoView({block: 'nearest'});
@@ -1502,7 +1654,7 @@ function quickAdd() {
   const ta = $('pairs'); ta.scrollTop = ta.scrollHeight;
 }
 ['qaF', 'qaR'].forEach(i => $(i).addEventListener('keydown', e => {
-  if (e.key !== 'Enter') return;
+  if (e.key !== 'Enter' || e.ctrlKey || e.metaKey) return;
   e.preventDefault();
   if (i === 'qaF' && $('qaF').value.trim() && !$('qaR').value.trim()) $('qaR').focus(); else quickAdd();
 }));
@@ -1629,12 +1781,23 @@ function clearHist() {
   renderHistory(); updateScopeHint();
   setStatus('History cleared.');
 }
+function histFiltered(h) {
+  const q = $('hq').value.trim().toLowerCase(), days = parseInt($('hdate').value, 10) || 0;
+  const t0 = days === 1 ? new Date().setHours(0, 0, 0, 0) : Date.now() - days * 864e5;
+  return h.filter(run => {
+    if (days && run.t < t0) return false;
+    if (!q) return true;
+    const hay = [run.label, new Date(run.t).toLocaleString(), ...run.pairs.map(p => p.find + ' ' + p.repl), ...run.files.map(f => f.name)].join('\n').toLowerCase();
+    return hay.includes(q);
+  });
+}
 function renderHistory() {
-  const h = getHist(), box = $('hlist');
+  const all = getHist(), h = histFiltered(all), box = $('hlist');
   box.textContent = '';
-  $('hbtn').textContent = 'History' + (h.length ? ` (${h.length})` : '');
-  $('hSum').textContent = 'History of runs' + (h.length ? ` (${h.length})` : '');
-  if (!h.length) { const p = el('p', 'No runs saved yet.'); p.className = 'hint'; box.append(p); return; }
+  $('hinfo').textContent = all.length && h.length !== all.length ? `Showing ${h.length} of ${all.length} runs.` : '';
+  $('hbtn').textContent = 'History' + (all.length ? ` (${all.length})` : '');
+  $('hSum').textContent = 'History of runs' + (all.length ? ` (${all.length})` : '');
+  if (!h.length) { const p = el('p', all.length ? 'No runs match this filter.' : 'No runs saved yet.'); p.className = 'hint'; box.append(p); return; }
   for (const run of h) {
     const it = document.createElement('div');
     it.className = 'hi';
@@ -1742,6 +1905,175 @@ async function countDocs() {
   } catch (e) { setStatus('Error: ' + e.message); }
   finally { busy = false; }
 }
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); if (!busy) preview(); }
+  else if (e.key === 'Escape' && busy) { stopFlag = true; setStatus('Stopping...'); }
+});
+/* ---------- v4.7: sign-in indicator, text size, history filter ---------- */
+function updateAuth() {
+  const e = $('authInfo');
+  if (!token) { e.textContent = 'Not signed in. The app asks you to sign in when it needs Drive.'; return; }
+  const m = Math.round((tokenExp - Date.now()) / 60000);
+  e.textContent = m > 0 ? `Signed in. The Google sign-in lasts about ${m} more minute${m === 1 ? '' : 's'}; the app renews it by itself.` : 'The sign-in has expired; the app will ask again when needed.';
+}
+setInterval(updateAuth, 30000);
+function applyTsize() {
+  const v = $('tsize').value;
+  document.documentElement.style.setProperty('--lnfs', v === 'l' ? '17px' : v === 'xl' ? '20px' : '14.5px');
+}
+{
+  const t = store.get('tsize', 'n');
+  $('tsize').value = ['n', 'l', 'xl'].includes(t) ? t : 'n';
+  applyTsize();
+  $('tsize').addEventListener('change', () => { store.set('tsize', $('tsize').value); applyTsize(); });
+  let ht;
+  $('hq').addEventListener('input', () => { clearTimeout(ht); ht = setTimeout(renderHistory, 200); });
+  $('hdate').addEventListener('change', renderHistory);
+}
+/* ---------- v4.8: profiles, counts, glossary files, uncomment, undo from report ---------- */
+function profs() { try { const p = JSON.parse(store.get('profiles', '{}')); return p && typeof p === 'object' && !Array.isArray(p) ? p : {}; } catch (e) { return {}; } }
+function refreshProf() {
+  const sel = $('prof'), P = profs();
+  sel.innerHTML = '<option value="">-- saved profiles --</option>';
+  for (const k of Object.keys(P).sort()) { const o = document.createElement('option'); o.value = k; o.textContent = k; sel.append(o); }
+  const cur = Object.keys(P).find(k => P[k].cid === CLIENT_ID && P[k].root === ROOT_ID);
+  if (cur) sel.value = cur;
+}
+function saveProf() {
+  const n = $('pname').value.trim();
+  if (!n) return setStatus('Enter a profile name.');
+  const c = $('cid').value.trim() || DEFAULTS.cid, r = fid($('root').value) || DEFAULTS.root;
+  const P = profs(); P[n] = {cid: c, root: r};
+  if (!store.set('profiles', JSON.stringify(P))) return setStatus('Not saved (browser storage is blocked).');
+  refreshProf(); $('prof').value = n; $('pname').value = '';
+  setStatus(`Profile "${n}" saved.`);
+}
+function applyProf() {
+  const k = $('prof').value, P = profs();
+  if (!k || !P[k]) return;
+  $('cid').value = P[k].cid; $('root').value = P[k].root;
+  saveSettings();
+  $('list').textContent = '';
+  setStatus(`Switched to profile "${k}". Reload the novel list.`);
+}
+function delProf() {
+  const k = $('prof').value;
+  if (!k) return setStatus('Select a profile first.');
+  if (!confirm(`Delete profile "${k}"?`)) return;
+  const P = profs(); delete P[k];
+  store.set('profiles', JSON.stringify(P)); refreshProf();
+  setStatus(`Profile "${k}" deleted.`);
+}
+
+function getCounts() { try { const c = JSON.parse(store.get('cnt', '{}')); return c && typeof c === 'object' ? c : {}; } catch (e) { return {}; } }
+function setBadge(node, n, lab) {
+  lab = lab || node.querySelector('.nrow label');
+  let b = lab.querySelector('.cnt');
+  if (!b) { b = document.createElement('span'); b.className = 'cnt'; lab.append(b); }
+  b.textContent = `(${n} docs)`;
+}
+async function countNovels() {
+  if (busy) return;
+  const nodes = [...document.querySelectorAll('#list > .node')].filter(n => !n.hidden);
+  if (!nodes.length) return setStatus('Load the novel list first.');
+  busy = true; stopFlag = false;
+  const cache = getCounts();
+  try {
+    if (!token) await login();
+    for (let i = 0; i < nodes.length; i++) {
+      if (stopFlag) { setStatus('Stopped.'); break; }
+      setStatus(`Counting docs: ${i + 1}/${nodes.length}`); progress(i + 1, nodes.length);
+      const cb = nodes[i].querySelector('.nrow input.nv');
+      const docs = await listDocs(cb.value, true);
+      cache[cb.value] = docs.length; setBadge(nodes[i], docs.length);
+      await sleep(150);
+    }
+    if (!stopFlag) setStatus('Counted docs in every listed novel (including subfolders).');
+  } catch (e) { setStatus('Error: ' + e.message); }
+  finally { store.set('cnt', JSON.stringify(cache)); busy = false; }
+}
+
+function autoGloss() {
+  if (!$('autog').checked) return;
+  const names = [...new Set([...selMap.values()].map(p => String(p).split(' / ')[0]))];
+  if (names.length !== 1) return;
+  const g = gloss(), key = Object.keys(g).find(k => k.toLowerCase() === names[0].toLowerCase());
+  if (!key) return;
+  const cur = $('pairs').value;
+  if (cur === g[key]) return;
+  if (cur.trim() && !confirm(`Replace the current pairs with glossary "${key}"?`)) return;
+  $('gsel').value = key; loadGloss();
+}
+function exportGloss() {
+  const k = $('gsel').value;
+  if (!k) return setStatus('Select a glossary from the list first.');
+  const t = gloss()[k] || '';
+  if (!t.trim()) return setStatus('That glossary is empty.');
+  downloadFile('glossary-' + k.replace(/[\\\/:*?"<>|]+/g, '-').slice(0, 60) + '-' + stamp() + '.txt', t, 'text/plain');
+  setStatus(`Glossary "${k}" exported.`);
+}
+async function importGloss(inp) {
+  const file = inp.files && inp.files[0];
+  inp.value = '';
+  if (!file) return;
+  try {
+    if (file.size > 2e6) throw new Error('the file is too large.');
+    const txt = (await file.text()).replace(/^﻿/, '').replace(/\r\n?/g, '\n').replace(/\n+$/, '');
+    if (!txt.trim()) throw new Error('the file is empty.');
+    const sug = file.name.replace(/\.[^.]+$/, '').replace(/^(glossary|pairs)-/, '').replace(/-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}$/, '');
+    const n = (prompt('Name for this glossary:', sug) || '').trim();
+    if (!n) return setStatus('Import cancelled.');
+    const g = gloss();
+    if (g[n] !== undefined && !confirm(`A glossary named "${n}" already exists. Overwrite it?`)) return;
+    g[n] = txt;
+    if (!store.set('gloss', JSON.stringify(g))) throw new Error('browser storage is blocked.');
+    refreshGloss(); $('gsel').value = n;
+    setStatus(`Glossary "${n}" imported.`);
+  } catch (e) { setStatus('Import failed: ' + e.message); }
+}
+
+function pairUncomment() {
+  let n = 0;
+  const out = pairLines().map(l => {
+    const t = l.trim();
+    if (t.startsWith('#') && t.indexOf('=>') >= 0) { n++; return t.replace(/^#+\s*/, ''); }
+    return l;
+  });
+  if (!n) return setStatus('No commented-out pairs found.');
+  setPairs(out.join('\n'), `Uncommented ${n} pairs. (Notes that contain => are treated as pairs too.)`);
+}
+
+async function undoFromReport(inp) {
+  const file = inp.files && inp.files[0];
+  inp.value = '';
+  if (!file) return;
+  try {
+    if (file.size > 5e6) throw new Error('the file is too large.');
+    const L = (await file.text()).replace(/^﻿/, '').replace(/\r\n?/g, '\n').split('\n');
+    if (!/^Bulk Replace report/.test(L[0] || '')) throw new Error('this is not a Bulk Replace report.');
+    const line = pre => L.find(l => l.startsWith(pre)) || '';
+    if (!/Replace/.test(line('Mode: '))) throw new Error('this report is not from a finished replace (previews cannot be undone).');
+    const matching = line('Matching: ');
+    const mode = /regular/.test(matching) ? 're' : /whole word/.test(matching) ? 'word' : 'lit';
+    const pi = L.indexOf('--- Pairs'), fi = L.findIndex(l => l.startsWith('--- Files'));
+    if (pi < 0 || fi < 0) throw new Error('the report has no pairs or files section.');
+    const pairs = [], ids = [];
+    for (const l of L.slice(pi + 1, fi)) {
+      const m = l.match(/^\d+\) (.*?) => (.*?)(?: : (?:replaced \d+ times.*|\d+ matches.*))?$/);
+      if (m && m[1].trim()) pairs.push({find: m[1].trim(), repl: m[2].trim()});
+    }
+    for (const l of L.slice(fi + 1)) {
+      const m = l.match(/^(\S.*?) \((\d+)\) https:\/\/docs\.google\.com\/document\/d\/([A-Za-z0-9_-]+)\/edit$/);
+      if (m) ids.push({id: m[3], name: m[1]});
+    }
+    if (!pairs.length || !ids.length) throw new Error('no pairs or files found in the report.');
+    undoFrom({t: Date.now(), ids, failed: [], pairs, mode, flex: /flexible/.test(matching), matchCase: /Case match: yes/.test(line('Case match: '))});
+  } catch (e) { setStatus('Import failed: ' + e.message); }
+}
+$('autog').checked = store.get('autog', '0') === '1';
+$('autog').addEventListener('change', () => store.set('autog', $('autog').checked ? '1' : '0'));
+refreshProf();
+updateAuth();
 updatePairCount();
 updateGlossSug();
 updateScopeHint();
@@ -1754,6 +2086,208 @@ updateFolderSel();
   $('vsort').addEventListener('change', renderList);
   $('vctx').addEventListener('change', () => { store.set('ctx', $('vctx').value); renderList(); });
 }
+
+/* ---------- v5.0: glossary entries (raw column) ---------- */
+/* store 'glex' = {setName: [entry]}; entry = {id, raw, wrong[], correct, lang, type, note, from, to, rawCh[], rules{}} */
+const GE_LANGS = ['ja', 'ko', 'zh', 'ru', 'en', 'other'], GE_TYPES = ['name', 'skill', 'place', 'title', 'other'];
+function glexAll() { try { const o = JSON.parse(store.get('glex', '{}')); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch (e) { return {}; } }
+function glexSet(name, arr) { const G = glexAll(); G[name] = arr; return store.set('glex', JSON.stringify(G)); }
+function entriesGet(name) { const a = glexAll()[name]; return Array.isArray(a) ? a : []; }
+let _geId = 0;
+function entryNew(o) {
+  o = o || {};
+  return {
+    id: 'e' + Date.now().toString(36) + (++_geId).toString(36) + Math.random().toString(36).slice(2, 5),
+    raw: String(o.raw || '').trim(),
+    wrong: Array.isArray(o.wrong) ? o.wrong.map(x => String(x).trim()).filter(Boolean) : [],
+    correct: String(o.correct === undefined ? '' : o.correct).trim(),
+    lang: GE_LANGS.includes(o.lang) ? o.lang : 'other',
+    type: GE_TYPES.includes(o.type) ? o.type : 'other',
+    note: String(o.note || ''),
+    from: Number.isFinite(o.from) ? o.from : null,
+    to: Number.isFinite(o.to) ? o.to : null,
+    rawCh: Array.isArray(o.rawCh) ? o.rawCh.filter(Number.isFinite) : [],
+    rules: o.rules && typeof o.rules === 'object' && !Array.isArray(o.rules) ? o.rules : {}
+  };
+}
+function glexClean(a) {
+  if (!Array.isArray(a)) return null;
+  return a.filter(e => e && typeof e === 'object' && typeof e.correct === 'string').map(e => {
+    const n = entryNew(e); if (typeof e.id === 'string' && e.id) n.id = e.id; return n;
+  });
+}
+/* entries -> normal pair lines (wrong variants joined by " | ") */
+function entriesToPairs(arr) {
+  const lines = []; let skipped = 0;
+  for (const e of arr || []) {
+    const w = (e.wrong || []).map(x => String(x).trim()).filter(Boolean);
+    if (!w.length) { skipped++; continue; }
+    lines.push(w.join(' | ') + ' => ' + String(e.correct || '').trim());
+  }
+  return {text: lines.join('\n'), count: lines.length, skipped};
+}
+/* legacy pairs text -> entries (raw empty); comments and lines without => are ignored */
+function pairsToEntries(text) {
+  const out = [], seen = new Set();
+  for (const line of String(text || '').replace(/\r/g, '').split('\n')) {
+    const t = line.trim();
+    if (!t || t.startsWith('#')) continue;
+    const i = line.indexOf('=>');
+    if (i < 0) continue;
+    const left = line.slice(0, i).trim(), correct = line.slice(i + 2).trim();
+    if (!left || seen.has(left)) continue;
+    seen.add(left);
+    out.push(entryNew({wrong: left.split(' | ').map(x => x.trim()).filter(Boolean), correct}));
+  }
+  return out;
+}
+/* merge: same raw + same correct (case-insensitive) -> union of wrong variants */
+function entriesMerge(base, add) {
+  const res = base.slice(), key = e => e.raw.toLowerCase() + '\u0001' + e.correct.toLowerCase();
+  const idx = new Map(res.map((e, i) => [key(e), i]));
+  let added = 0, merged = 0;
+  for (const e of add) {
+    const k = key(e);
+    if (idx.has(k)) {
+      const t = res[idx.get(k)], before = t.wrong.length;
+      e.wrong.forEach(w => { if (!t.wrong.some(x => x.toLowerCase() === w.toLowerCase())) t.wrong.push(w); });
+      if (t.wrong.length > before) merged++;
+    } else { idx.set(k, res.length); res.push(e); added++; }
+  }
+  return {list: res, added, merged};
+}
+function geName() { return ($('gname').value || '').trim() || $('gsel').value || '(default)'; }
+let geEditId = null;
+const LANG_NAME = {ja: 'Japanese', ko: 'Korean', zh: 'Chinese', ru: 'Russian', en: 'English', other: 'Other'};
+function geFiltered(arr) {
+  const q = ($('geQ').value || '').trim().toLowerCase(), fl = $('geFL').value, ft = $('geFT').value;
+  return arr.filter(e => (!fl || e.lang === fl) && (!ft || e.type === ft) &&
+    (!q || (e.raw + '\n' + e.wrong.join('\n') + '\n' + e.correct + '\n' + e.note).toLowerCase().includes(q)));
+}
+function renderEntries() {
+  const box = $('geList'); if (!box) return;
+  const name = geName(), all = entriesGet(name), arr = geFiltered(all), MAX = 200;
+  $('geWho').textContent = name;
+  $('geBadge').textContent = all.length;
+  box.textContent = '';
+  arr.slice(0, MAX).forEach(e => {
+    const r = el('div'); r.className = 'exr'; r.setAttribute('role', 'button'); r.tabIndex = 0;
+    r.onclick = () => geOpen(e.id);
+    r.onkeydown = ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); geOpen(e.id); } };
+    if (e.raw || e.lang !== 'other' || e.type !== 'other') {
+      const m = el('div'); m.className = 'rw';
+      const t = el('span', e.lang); t.className = 'tag'; m.append(t);
+      m.append((e.raw ? e.raw + ' ' : '') + (e.type !== 'other' ? '(' + e.type + ')' : ''));
+      r.append(m);
+    }
+    const l = el('div');
+    const w = el('span', e.wrong.join(' | ') || '(no wrong form)'); w.className = 'wr';
+    const c = el('span', e.correct === '' ? '(delete)' : e.correct); c.className = 'ok';
+    l.append(w, ' => ', c); r.append(l);
+    if (e.note) { const n = el('div', e.note); n.className = 'nt'; r.append(n); }
+    box.append(r);
+  });
+  if (arr.length > MAX) { const m = el('div', `Showing ${MAX} of ${arr.length} matching entries.`); m.className = 'exr more'; box.append(m); }
+  const p = entriesToPairs(all);
+  $('geInfo').textContent = all.length ? (arr.length !== all.length ? `${arr.length} of ${all.length} entries shown. ` : '') + `${all.length} entries, ${p.count} usable as pairs` + (p.skipped ? `, ${p.skipped} without a wrong form (skipped)` : '') + '.' : '';
+  geRevRender();
+}
+function geRevRender() {
+  const out = $('geRevOut'), q = ($('geRev').value || '').trim().toLowerCase();
+  if (!q) { out.hidden = true; out.textContent = ''; return; }
+  const all = entriesGet(geName());
+  let hit = all.filter(e => e.correct.toLowerCase() === q);
+  if (!hit.length) hit = all.filter(e => e.correct.toLowerCase().includes(q));
+  out.textContent = ''; out.hidden = false;
+  if (!hit.length) { out.textContent = 'No entry has this correct term.'; return; }
+  hit.slice(0, 5).forEach(e => {
+    const d = el('div');
+    d.textContent = e.correct + ' | raw: ' + (e.raw || '(none)') + (e.lang !== 'other' ? ' (' + LANG_NAME[e.lang] + ')' : '') + ' | wrong: ' + (e.wrong.join(', ') || '(none)');
+    out.append(d);
+  });
+  if (hit.length > 5) out.append(el('div', `${hit.length - 5} more not shown.`));
+}
+function geOpen(id) {
+  const e = id ? entriesGet(geName()).find(x => x.id === id) : null;
+  if (id && !e) return setStatus('That entry no longer exists.');
+  geEditId = e ? e.id : null;
+  $('geRaw').value = e ? e.raw : ''; $('geWrong').value = e ? e.wrong.join('\n') : '';
+  $('geCor').value = e ? e.correct : ''; $('geLang').value = e ? e.lang : 'ja';
+  $('geType').value = e ? e.type : 'name'; $('geNote').value = e ? e.note : '';
+  $('geDelB').hidden = !e; $('geEd').hidden = false;
+  $('geEd').scrollIntoView({block: 'nearest', behavior: 'smooth'});
+  $(e ? 'geCor' : 'geRaw').focus({preventScroll: true});
+}
+function geClose() { $('geEd').hidden = true; geEditId = null; }
+function geSave() {
+  const name = geName(), list = entriesGet(name).slice();
+  const wrong = []; $('geWrong').value.split('\n').forEach(x => { x = x.trim(); if (x && !wrong.some(w => w.toLowerCase() === x.toLowerCase())) wrong.push(x); });
+  const raw = $('geRaw').value.trim();
+  if (!wrong.length && !raw) return setStatus('Write at least one wrong form or a raw term.');
+  const lw = wrong.map(w => w.toLowerCase());
+  const clash = list.find(x => x.id !== geEditId && x.wrong.some(w => lw.includes(w.toLowerCase())) && x.correct !== $('geCor').value.trim());
+  if (clash && !confirm('A wrong form here is already used by another entry with a different correct term ("' + clash.correct + '"). Save anyway?')) return;
+  const data = {raw, wrong, correct: $('geCor').value, lang: $('geLang').value, type: $('geType').value, note: $('geNote').value.trim()};
+  const i = geEditId ? list.findIndex(x => x.id === geEditId) : -1;
+  if (i >= 0) { const o = list[i]; list[i] = Object.assign(entryNew(data), {id: o.id, from: o.from, to: o.to, rawCh: o.rawCh, rules: o.rules}); }
+  else list.push(entryNew(data));
+  if (!glexSet(name, list)) return setStatus('Not saved (browser storage is blocked).');
+  geClose(); renderEntries();
+  setStatus(i >= 0 ? 'Entry updated.' : 'Entry added.');
+}
+function geDel() {
+  if (!geEditId) return;
+  if (!confirm('Delete this entry?')) return;
+  const name = geName();
+  glexSet(name, entriesGet(name).filter(x => x.id !== geEditId));
+  geClose(); renderEntries(); setStatus('Entry deleted.');
+}
+function geSync() {
+  const name = geName();
+  if (name === '(default)') return setStatus('Type a glossary name in Step 2 first.');
+  const p = entriesToPairs(entriesGet(name));
+  if (!p.count) return setStatus('No entries with a wrong form to save.');
+  const g = gloss();
+  if (g[name] !== undefined && g[name].trim() && g[name].trim() !== p.text.trim() &&
+    !confirm(`Overwrite the text glossary "${name}" with ${p.count} pairs from the entries? Comment lines and lines without => in that glossary are lost.`)) return;
+  g[name] = p.text;
+  if (!store.set('gloss', JSON.stringify(g))) return setStatus('Not saved (browser storage is blocked).');
+  refreshGloss(); $('gsel').value = name;
+  setStatus(`Glossary "${name}" saved from ${p.count} entries.`);
+}
+function geLoad() {
+  const name = geName(), g = gloss();
+  const saved = g[name] !== undefined;
+  const src = saved ? g[name] : $('pairs').value;
+  const from = saved ? `glossary "${name}"` : 'the current pairs';
+  const add = pairsToEntries(src);
+  if (!add.length) return setStatus('No pairs with => found in ' + from + '.');
+  const r = entriesMerge(entriesGet(name), add);
+  if (!glexSet(name, r.list)) return setStatus('Not saved (browser storage is blocked).');
+  renderEntries();
+  setStatus(`Entries for "${name}": ${r.added} added, ${r.merged} extended from ${from}.`);
+}
+function geUse() {
+  const name = geName(), p = entriesToPairs(entriesGet(name));
+  if (!p.count) return setStatus('No entries with a wrong form to use. Load entries first.');
+  const cur = $('pairs').value;
+  if (cur.trim() && cur.trim() !== p.text.trim() && !confirm(`Replace the current pairs with ${p.count} pairs from the entries of "${name}"?`)) return;
+  setPairs(p.text, `${p.count} pairs written from entries of "${name}".`);
+  if (typeof updatePairCount === 'function') updatePairCount();
+}
+function geClear() {
+  const name = geName(), n = entriesGet(name).length;
+  if (!n) return setStatus('There are no entries to clear.');
+  if (!confirm(`Delete all ${n} entries of "${name}"? The text glossary and the pairs stay as they are.`)) return;
+  glexSet(name, []); renderEntries(); setStatus('Entries cleared.');
+}
+(function () {
+  $('gname').addEventListener('input', renderEntries);
+  $('gsel').addEventListener('change', renderEntries);
+  ['geQ', 'geRev'].forEach(i => $(i).addEventListener('input', renderEntries));
+  ['geFL', 'geFT'].forEach(i => $(i).addEventListener('change', renderEntries));
+  renderEntries();
+})();
 </script>
 </body>
 </html>
