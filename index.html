@@ -106,6 +106,10 @@ details.file>.ln:last-child{margin-bottom:12px}
 .warn{clear:both;font-size:12.5px;color:var(--er);margin-top:4px}
 del{background:var(--dl);color:var(--dlf);text-decoration:line-through;padding:0 3px;border-radius:4px}
 ins{background:var(--in);color:var(--inf);text-decoration:none;padding:0 3px;border-radius:4px;font-weight:600}
+.fl{display:grid;gap:6px;font-weight:600;font-size:14.5px}
+.fl small{font-weight:400;color:var(--mut);font-size:13px;line-height:1.5}
+mark{background:#ffe27a;color:#3a2c00;padding:0 3px;border-radius:4px;font-weight:600}
+body.fo #bAll,body.fo #bApply{opacity:.45}
 @media(min-width:980px){
 .app{padding-bottom:40px}
 .cols{grid-template-columns:minmax(0,5fr) minmax(0,6fr);align-items:start}
@@ -132,8 +136,14 @@ ins{background:var(--in);color:var(--inf);text-decoration:none;padding:0 3px;bor
 <details class="card">
   <summary>Settings and account</summary>
   <div class="bd">
-    <input type="text" id="cid" placeholder="Google OAuth Client ID" autocomplete="off">
-    <input type="text" id="root" placeholder="My Work folder ID (ba folder link)" autocomplete="off">
+    <label class="fl">Google OAuth Client ID
+      <small>Paste your Client ID in this box. Find it in Google Cloud Console: APIs and Services, then Credentials, then your OAuth 2.0 Web client. It looks like 1234567890-abcdef.apps.googleusercontent.com. It is only used to sign in and is not a password.</small>
+      <input type="text" id="cid" placeholder="1234567890-abcdef.apps.googleusercontent.com" autocomplete="off">
+    </label>
+    <label class="fl">My Work folder ID
+      <small>Paste the ID of the Drive folder that holds all your novel folders. Open that folder in Google Drive and copy the part of the address after /folders/ (drive.google.com/drive/folders/THIS_PART). Pasting the whole folder link also works. Do not paste a single Doc here.</small>
+      <input type="text" id="root" placeholder="1Y7cF60rpEzIgwH-vxDZ... or the folder link" autocomplete="off">
+    </label>
     <button class="pri" onclick="saveSettings()">Save settings</button>
     <p class="hint">Saved in this browser. Leave empty and save to use the default ID built into the code.</p>
     <div class="row">
@@ -169,7 +179,10 @@ ins{background:var(--in);color:var(--inf);text-decoration:none;padding:0 3px;bor
     </div>
     <div id="selbox" class="selbox none">No folder selected.</div>
     <p class="hint">Only ticked folders (and their subfolders) are processed. Tap ▸ to see subfolders. Tap a chip to remove a folder.</p>
-    <input type="text" id="extra" placeholder="Extra folder IDs/links (optional, comma-separated)" autocomplete="off">
+    <label class="fl">Extra folders (optional)
+      <small>Folder IDs or links of other Drive folders to include besides the ticked ones, separated by commas. Use it for folders outside My Work. It must be a folder, not a single Doc.</small>
+      <input type="text" id="extra" placeholder="folder ID or link, another ID or link" autocomplete="off">
+    </label>
     <label class="sw"><input type="checkbox" id="rec" checked>Include subfolders of ticked folders</label>
   </div>
 </details>
@@ -183,7 +196,21 @@ ins{background:var(--in);color:var(--inf);text-decoration:none;padding:0 3px;bor
       <button class="sm" onclick="$('fPairs').click()">Import pairs (.txt)</button>
     </div>
     <input type="file" id="fPairs" accept=".txt,.csv,text/plain" hidden onchange="importPairs(this)">
-    <p class="hint">Format: <b>wrong =&gt; correct</b>. Leave the correct part empty to delete that word.</p>
+    <details class="box">
+      <summary>Pair tools</summary>
+      <div class="bd">
+        <div class="row">
+          <button class="sm" onclick="pairCheck()">Check pairs</button>
+          <button class="sm" onclick="pairSort()">Sort A-Z</button>
+        </div>
+        <div class="row">
+          <button class="sm" onclick="pairDedupe()">Remove duplicates</button>
+          <button class="sm" onclick="pairSwap()">Swap sides (undo)</button>
+        </div>
+        <p class="hint">Check pairs warns about very short terms, duplicates, chains (a result that a later pair changes again) and invalid patterns. Swap sides turns every "wrong => correct" into "correct => wrong", which is the easiest way to undo a replacement.</p>
+      </div>
+    </details>
+    <p class="hint">Format: <b>wrong =&gt; correct</b>. Leave the correct part empty to delete that word. Several wrong spellings of one term can share a line, separated by " | " (example: tar bhai | tar bhaiya => his brother).</p>
     <details class="box">
       <summary>Glossary (save term lists per novel)</summary>
       <div class="bd">
@@ -208,6 +235,16 @@ ins{background:var(--in);color:var(--inf);text-decoration:none;padding:0 3px;bor
     </div>
     <input type="text" id="nfilter" placeholder="File name filter (optional, e.g. Arc 2)" autocomplete="off">
     <p class="hint">The range uses the chapter number in the file name (Chapter 12, Ch 12, or the first number). Files without a number are skipped. Leave both empty for all chapters.</p>
+    <label class="fl">Matching mode
+      <select id="mode">
+        <option value="lit">Contains (plain text)</option>
+        <option value="word">Whole word only</option>
+        <option value="re">Regular expression</option>
+      </select>
+    </label>
+    <p class="hint" id="modeHint"></p>
+    <label class="sw"><input type="checkbox" id="flex">Flexible spaces (a space in the term matches any run of spaces)</label>
+    <label class="sw"><input type="checkbox" id="fo">Find only (list matches, never change anything)</label>
     <label class="sw"><input type="checkbox" id="c" checked>Match case (uppercase/lowercase must match)</label>
   </div>
 </details>
@@ -499,7 +536,7 @@ function delGloss() {
 refreshGloss();
 
 /* ---------- remember options ---------- */
-const OPT_IDS = ['c', 'rec', 'nfilter', 'rfrom', 'rto', 'extra'];
+const OPT_IDS = ['c', 'rec', 'nfilter', 'rfrom', 'rto', 'extra', 'mode', 'flex'];
 function saveOpts() {
   const o = {};
   OPT_IDS.forEach(i => { const e = $(i); o[i] = e.type === 'checkbox' ? e.checked : e.value; });
@@ -518,6 +555,20 @@ function saveOpts() {
 })();
 
 /* ---------- parsing / scanning ---------- */
+function getMode() { const m = $('mode').value; return m === 'word' || m === 're' ? m : 'lit'; }
+function buildRe(p) {
+  const mode = getMode(), flex = $('flex').checked, ci = !$('c').checked;
+  if (mode === 're') {
+    try { return new RegExp(p.find, 'gu' + (ci ? 'i' : '')); } catch (e) { return new RegExp(p.find, 'g' + (ci ? 'i' : '')); }
+  }
+  const alts = p.find.split(' | ').map(x => x.trim()).filter(Boolean).sort((a, b) => b.length - a.length);
+  let src = alts.map(a => { const e = escapeRegExp(a); return flex ? e.replace(/\s+/g, '\\s+') : e; }).join('|');
+  if (mode === 'word') return new RegExp('(?<![\\p{L}\\p{N}\\p{M}_])(?:' + src + ')(?![\\p{L}\\p{N}\\p{M}_])', 'gu' + (ci ? 'i' : ''));
+  return new RegExp(alts.length > 1 ? '(?:' + src + ')' : src, 'g' + (ci ? 'i' : ''));
+}
+function expandRepl(repl, m) {
+  return repl.replace(/\$(\d{1,2}|&|\$)/g, (x, g) => g === '$' ? '$' : g === '&' ? m[0] : (m[+g] !== undefined ? m[+g] : ''));
+}
 function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
 function parsePairs() {
@@ -527,7 +578,7 @@ function parsePairs() {
     const t = line.trim();
     if (!t || t.startsWith('#')) continue;
     const i = line.indexOf('=>');
-    if (i < 0) { bad.push(t); continue; }
+    if (i < 0) { if ($('fo').checked) { if (!seen.has(t)) { seen.add(t); pairs.push({find: t, repl: ''}); } } else bad.push(t); continue; }
     const find = line.slice(0, i).trim(), repl = line.slice(i + 2).trim();
     if (!find || seen.has(find)) continue;
     seen.add(find);
@@ -576,6 +627,9 @@ async function scan() {
   const {pairs, bad} = parsePairs();
   if (bad.length) { setStatus('This line has no "=>": ' + bad[0]); return null; }
   if (!pairs.length) { setStatus('Write at least one "wrong => correct" line.'); return null; }
+  let res;
+  try { res = pairs.map(p => buildRe(p)); } catch (e) { setStatus('Invalid pattern: ' + e.message); return null; }
+  const mode = getMode(), fo = $('fo').checked;
   const folders = selectedFolders();
   for (const s of $('extra').value.split(',')) { const f = fid(s); if (f) folders.push({id: f, path: '(extra) ' + f}); }
   if (!folders.length) { setStatus('Load the novel list and tick at least one folder (or add an extra folder).'); return null; }
@@ -605,7 +659,6 @@ async function scan() {
   }
   if (!docs.length) { setStatus(rangeInfo || 'No docs found (check the folder, range or name filter).'); return null; }
   const matchCase = $('c').checked;
-  const res = pairs.map(p => new RegExp(escapeRegExp(p.find), matchCase ? 'g' : 'gi'));
   const results = [];
   const totals = pairs.map(() => 0), fileCounts = pairs.map(() => 0);
   let totalMatches = 0;
@@ -622,11 +675,12 @@ async function scan() {
         re.lastIndex = 0;
         let m;
         while ((m = re.exec(p.text))) {
+          if (!m[0].length) { re.lastIndex++; continue; }
           const a = m.index, b = a + m[0].length;
           const ds = toDoc(p.segs, a), last = toDoc(p.segs, b - 1);
           const de = last === null ? null : last + 1;
           const ok = ds !== null && de !== null && de - ds === b - a;
-          matches.push({k, text: p.text, a, b, ds, de, ok, sel: ok});
+          matches.push({k, text: p.text, a, b, ds, de, ok, sel: ok, rep: fo ? null : (mode === 're' ? expandRepl(pairs[k].repl, m) : pairs[k].repl)});
           counts[k]++;
           if (!m[0].length) re.lastIndex++;
         }
@@ -640,7 +694,7 @@ async function scan() {
     }
     await sleep(400);
   }
-  return {docs: docs.length, results, totalMatches, pairs, totals, fileCounts, matchCase,
+  return {docs: docs.length, results, totalMatches, pairs, totals, fileCounts, matchCase, mode, flex: $('flex').checked, fo,
     folderNames: folders.map(f => f.path), rec, nf, rangeInfo};
 }
 
@@ -666,7 +720,8 @@ function buildMatch(m, pair, mode, multi) {
   }
   if (multi) { const t = el('span', `[${m.k + 1}]`); t.className = 'tag'; wrap.append(t); }
   const {pre, term, post} = ctxParts(m);
-  wrap.append(pre, el('del', term), el('ins', pair.repl || '(deleted)'), post);
+  if (m.rep === null) wrap.append(pre, el('mark', term), post);
+  else wrap.append(pre, el('del', term), el('ins', m.rep || '(deleted)'), post);
   if (mode === 'review' && !m.ok) { const w = el('div', 'Complex spot (formatting or an image in the middle), so it cannot be selected on its own. Use "Replace all" for it.'); w.className = 'warn'; wrap.append(w); }
   return wrap;
 }
@@ -787,6 +842,7 @@ function buildReport(r, label, rows, note) {
   L.push('Time: ' + new Date().toLocaleString());
   L.push('Mode: ' + label);
   L.push('Case match: ' + (r.matchCase ? 'yes' : 'no'));
+  L.push('Matching: ' + ({lit: 'contains', word: 'whole word', re: 'regular expression'}[r.mode] || 'contains') + (r.flex ? ', flexible spaces' : '') + (r.fo ? ', find only' : ''));
   L.push('Folder: ' + r.folderNames.join(' | '));
   L.push('Include subfolders: ' + (r.rec ? 'yes' : 'no') + (r.nf ? '; name filter: ' + r.nf : ''));
   if (r.rangeInfo) L.push(r.rangeInfo);
@@ -794,14 +850,14 @@ function buildReport(r, label, rows, note) {
   if (note) L.push(note);
   L.push('');
   L.push('--- Pairs');
-  r.pairs.forEach((p, k) => L.push(`${k + 1}) ${p.find} => ${p.repl}` + (rows ? ' : ' + rows[k] : '')));
+  r.pairs.forEach((p, k) => L.push(`${k + 1}) ${r.fo ? p.find : p.find + ' => ' + p.repl}` + (rows ? ' : ' + rows[k] : '')));
   L.push('');
   L.push('--- Files and lines  ([old => new])');
   for (const f of r.results) {
     L.push(`${f.name} (${f.matches.length}) https://docs.google.com/document/d/${f.id}/edit`);
     for (const m of f.matches) {
       const {pre, term, post} = ctxParts(m);
-      L.push(`  [${m.k + 1}] ${pre}[${term} => ${r.pairs[m.k].repl}]${post}`);
+      L.push(`  [${m.k + 1}] ${pre}${m.rep === null ? '[' + term + ']' : '[' + term + ' => ' + m.rep + ']'}${post}`);
     }
   }
   return L.join('\n');
@@ -841,22 +897,24 @@ async function preview() {
     lastScan = r;
     fillPairSel(r);
     showSummary(
-      `Preview: ${r.docs} docs checked, ${r.totalMatches} matches in ${r.results.length} files. Nothing has been changed yet.` +
+      `${r.fo ? 'Find only' : 'Preview'}: ${r.docs} docs checked, ${r.totalMatches} matches in ${r.results.length} files.${r.fo ? '' : ' Nothing has been changed yet.'}` +
       (r.rangeInfo ? '\n' + r.rangeInfo : ''),
-      r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl} : ${r.totals[k]} matches, ${r.fileCounts[k]} files`)
+      r.pairs.map((p, k) => `${k + 1}) ${r.fo ? p.find : p.find + ' => ' + p.repl} : ${r.totals[k]} matches, ${r.fileCounts[k]} files`)
     );
-    showResults(r, 'review');
-    $('rv').hidden = !r.results.length;
+    showResults(r, r.fo ? 'done' : 'review');
+    $('rv').hidden = r.fo || !r.results.length;
     updateSelInfo();
     finishUI(buildReport(r, 'Preview (nothing changed)', r.pairs.map((p, k) => `${r.totals[k]} matches, ${r.fileCounts[k]} files`), ''));
   } catch (e) { setStatus('Error: ' + e.message); }
   finally { busy = false; releaseAwake(); }
 }
 
-async function applySelected() {
+async function applySelected(auto) {
   if (busy) return;
+  if ($('fo').checked) return setStatus('Find only is on. Turn it off to replace.');
   if (!lastScan) return setStatus('Run Preview first.');
   const r = lastScan;
+  const complex = r.results.reduce((a, f) => a + f.matches.filter(m => !m.ok).length, 0);
   const jobs = [];
   for (const f of r.results) {
     const ms = f.matches.filter(m => m.sel && m.ok).sort((x, y) => y.ds - x.ds);
@@ -869,7 +927,7 @@ async function applySelected() {
   }
   const total = jobs.reduce((a, j) => a + j.chosen.length, 0);
   if (!total) return setStatus('No matches selected.');
-  if (!confirm(`Folder: ${r.folderNames.join(' | ')}\n\nReplace ${total} ticked matches in ${jobs.length} files?\n(Unticked matches will be skipped.)`)) return;
+  if (!auto && !confirm(`Folder: ${r.folderNames.join(' | ')}\n\nReplace ${total} ticked matches in ${jobs.length} files?\n(Unticked matches will be skipped.)`)) return;
   busy = true; stopFlag = false;
   await keepAwake();
   const doneResults = [], failed = [];
@@ -881,7 +939,7 @@ async function applySelected() {
       setStatus(`Replace: ${i + 1}/${jobs.length}`); progress(i + 1, jobs.length);
       const requests = [];
       for (const m of chosen) {
-        const repl = r.pairs[m.k].repl;
+        const repl = m.rep;
         if (repl) requests.push({insertText: {location: {index: m.de}, text: repl}});
         requests.push({deleteContentRange: {range: {startIndex: m.ds, endIndex: m.de}}});
       }
@@ -901,7 +959,7 @@ async function applySelected() {
     const r2 = {...r, results: doneResults, totalMatches: doneTotal};
     const rows = r.pairs.map((p, k) => `replaced ${applied[k]} times`);
     showSummary(
-      (stopFlag ? 'Stopped. ' : '') + `Done: ${doneTotal} matches replaced in ${doneResults.length} files.` +
+      (stopFlag ? 'Stopped. ' : '') + `Done: ${doneTotal} matches replaced in ${doneResults.length} files.` + (complex ? ` ${complex} complex matches were not changed.` : '') +
       (failed.length ? `\n${failed.length} files failed: ` + failed.join('; ') : ''),
       r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl} : ${rows[k]}`)
     );
@@ -915,6 +973,7 @@ async function applySelected() {
 
 async function replaceAll() {
   if (busy) return;
+  if ($('fo').checked) return setStatus('Find only is on. Turn it off to replace.');
   busy = true; stopFlag = false; resetOut();
   await keepAwake();
   try {
@@ -926,8 +985,10 @@ async function replaceAll() {
       return;
     }
     const short = r.pairs.some(p => p.find.length < 3);
+    const adv = r.mode !== 'lit' || r.flex || r.pairs.some(p => p.find.includes(' | '));
     const msg = `Folder: ${r.folderNames.join(' | ')}\n\n${r.rangeInfo ? r.rangeInfo + '\n\n' : ''}${r.totalMatches} matches in ${r.results.length} files, ${r.pairs.length} pairs.` +
       (short ? '\n\nWarning: some terms are very short and may also change other words.' : '') +
+      (adv ? '\n\nThis matching mode is applied match by match (a bit slower). Complex spots are skipped.' : '') +
       (r.pairs.length > 1 ? '\n\nPairs are applied one by one from top to bottom.' : '') +
       '\n\nReplace ALL matches? (To pick matches one by one, use Preview and review.)';
     if (!confirm(msg)) {
@@ -939,6 +1000,13 @@ async function replaceAll() {
       $('rv').hidden = false;
       updateSelInfo();
       finishUI(buildReport(r, 'Preview (Replace all cancelled)', r.pairs.map((p, k) => `${r.totals[k]} matches`), ''));
+      return;
+    }
+    if (adv) {
+      lastScan = r;
+      r.results.forEach(f => f.matches.forEach(m => { m.sel = m.ok; }));
+      releaseAwake(); busy = false;
+      await applySelected(true);
       return;
     }
     const applied = r.pairs.map(() => 0), appliedFiles = r.pairs.map(() => 0);
@@ -1072,6 +1140,82 @@ async function importPairs(inp) {
   } catch (e) { setStatus('Import failed: ' + e.message); }
 }
 showBackupInfo();
+
+/* ---------- matching mode hint, find-only, pair tools ---------- */
+function updateModeHint() {
+  const m = getMode();
+  $('modeHint').textContent = {
+    lit: 'Finds the text anywhere, even inside longer words. Put several wrong spellings on one line with " | " between them.',
+    word: 'Matches only when the term is a whole word, not part of a longer word. Also accepts " | " variants.',
+    re: 'The left side is a regular expression. In the replacement use $1, $2 for groups and $& for the whole match. Example: Chapter (\\d+) => Ch. $1'
+  }[m];
+  $('flex').disabled = m === 're';
+}
+$('mode').addEventListener('change', updateModeHint);
+$('fo').addEventListener('change', () => document.body.classList.toggle('fo', $('fo').checked));
+updateModeHint();
+
+function pairLines() { return $('pairs').value.replace(/\r/g, '').split('\n'); }
+function setPairs(t, msg) { $('pairs').value = t; store.set('draft', t); setStatus(msg); }
+const isBlankOrNote = l => { const t = l.trim(); return !t || t.startsWith('#'); };
+function keyOf(l) { const i = l.indexOf('=>'); return (i < 0 ? l : l.slice(0, i)).trim(); }
+function pairSort() {
+  const L = pairLines(), notes = L.filter(l => l.trim().startsWith('#')), ds = L.filter(l => !isBlankOrNote(l));
+  if (!ds.length) return setStatus('There are no pairs to sort.');
+  ds.sort((a, b) => keyOf(a).localeCompare(keyOf(b), undefined, {sensitivity: 'base'}));
+  setPairs(notes.concat(ds).join('\n'), `Sorted ${ds.length} pairs A-Z (notes moved to the top, blank lines removed).`);
+}
+function pairDedupe() {
+  const seen = new Set(); let n = 0;
+  const out = pairLines().filter(l => {
+    if (isBlankOrNote(l)) return true;
+    const k = keyOf(l);
+    if (seen.has(k)) { n++; return false; }
+    seen.add(k); return true;
+  });
+  setPairs(out.join('\n'), n ? `Removed ${n} duplicate lines (the first of each was kept).` : 'No duplicates found.');
+}
+function pairSwap() {
+  if (getMode() === 're') return setStatus('Swap sides is not available in regular expression mode.');
+  let n = 0, sk = 0;
+  const out = pairLines().map(l => {
+    if (isBlankOrNote(l)) return l;
+    const i = l.indexOf('=>');
+    if (i < 0) { sk++; return l; }
+    const f = l.slice(0, i).trim(), r = l.slice(i + 2).trim();
+    if (!f || !r || f.includes(' | ')) { sk++; return l; }
+    n++; return r + ' => ' + f;
+  });
+  setPairs(out.join('\n'), `Swapped ${n} pairs` + (sk ? `; ${sk} lines skipped (empty side, " | " variants or no "=>")` : '') + '. Run Preview to undo a replacement.');
+}
+function pairCheck() {
+  const {pairs, bad} = parsePairs(), W = [], mode = getMode();
+  if (!pairs.length && !bad.length) return setStatus('Write some pairs first.');
+  bad.forEach(b => W.push('No "=>" in this line: ' + b));
+  const seen = new Map();
+  for (const l of pairLines()) {
+    if (isBlankOrNote(l) || l.indexOf('=>') < 0) continue;
+    const f = keyOf(l), r = l.slice(l.indexOf('=>') + 2).trim();
+    if (seen.has(f) && seen.get(f) !== r) W.push(`"${f}" appears more than once with different replacements; only the first is used.`);
+    if (!seen.has(f)) seen.set(f, r);
+  }
+  const cs = $('c').checked;
+  const norm = x => cs ? x : x.toLowerCase();
+  pairs.forEach((p, i) => {
+    const n = i + 1;
+    if (mode === 're') { try { buildRe(p); } catch (e) { W.push(`Pair ${n}: invalid pattern (${e.message}).`); } return; }
+    if (p.find.length < 3) W.push(`Pair ${n}: "${p.find}" is very short and may also match inside other words` + (mode === 'lit' ? ' (try the Whole word mode).' : '.'));
+    if (p.repl === p.find) W.push(`Pair ${n}: both sides are the same, so nothing changes.`);
+    if (!p.repl) W.push(`Pair ${n}: "${p.find}" will be deleted (empty replacement).`);
+    pairs.forEach((q, j) => {
+      if (j > i && p.repl && !q.find.includes(' | ') && norm(p.repl).includes(norm(q.find)))
+        W.push(`Pair ${n} produces "${q.find}", which pair ${j + 1} changes again when you use Replace all.`);
+    });
+  });
+  showSummary(W.length ? `Pair check: ${pairs.length} pairs, ${W.length} warnings` : `Pair check: ${pairs.length} pairs, no problems found`, W);
+  setStatus(W.length ? `${W.length} warnings found. See the result panel.` : 'No problems found.');
+  $('sum').scrollIntoView({block: 'nearest'});
+}
 </script>
 </body>
 </html>
