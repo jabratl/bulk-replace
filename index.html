@@ -110,6 +110,12 @@ ins{background:var(--in);color:var(--inf);text-decoration:none;padding:0 3px;bor
 .fl small{font-weight:400;color:var(--mut);font-size:13px;line-height:1.5}
 mark{background:#ffe27a;color:#3a2c00;padding:0 3px;border-radius:4px;font-weight:600}
 body.fo #bAll,body.fo #bApply{opacity:.45}
+#tb{padding:12px 14px;display:grid;gap:10px}
+#vinfo{font-size:13.5px;font-weight:650;color:var(--ac)}
+#vchips{max-height:none}
+button.chip.on{background:var(--ac);color:var(--acf)}
+details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
+#vfoot{margin:10px 0 14px}
 @media(min-width:980px){
 .app{padding-bottom:40px}
 .cols{grid-template-columns:minmax(0,5fr) minmax(0,6fr);align-items:start}
@@ -126,7 +132,7 @@ body.fo #bAll,body.fo #bApply{opacity:.45}
 <body>
 <div class="app">
 <header class="top">
-  <div class="t"><h1>Bulk Replace<span class="ver">v4</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
+  <div class="t"><h1>Bulk Replace<span class="ver">v4.3</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
   <button class="icon" id="thm" onclick="cycleTheme()" aria-label="Change theme" title="Change theme">Auto</button>
 </header>
 
@@ -154,7 +160,7 @@ body.fo #bAll,body.fo #bApply{opacity:.45}
 </details>
 
 <details class="card">
-  <summary>Backup and restore</summary>
+  <summary id="bkSum">Backup and restore</summary>
   <div class="bd">
     <p class="hint">A backup file holds your settings, glossaries, current pairs and options. It never contains your login token, so it is safe to keep.</p>
     <div class="row">
@@ -178,7 +184,7 @@ body.fo #bAll,body.fo #bApply{opacity:.45}
       <button class="sm" onclick="folderSel('invert')">Folders: invert</button>
     </div>
     <div id="selbox" class="selbox none">No folder selected.</div>
-    <p class="hint">Only ticked folders (and their subfolders) are processed. Tap ▸ to see subfolders. Tap a chip to remove a folder.</p>
+    <p class="hint">Only ticked folders (and their subfolders) are processed. Tap ▸ to see subfolders. Tap a chip to remove a folder. Your ticks, including subfolders, are remembered on this device.</p>
     <label class="fl">Extra folders (optional)
       <small>Folder IDs or links of other Drive folders to include besides the ticked ones, separated by commas. Use it for folders outside My Work. It must be a folder, not a single Doc.</small>
       <input type="text" id="extra" placeholder="folder ID or link, another ID or link" autocomplete="off">
@@ -190,6 +196,11 @@ body.fo #bAll,body.fo #bApply{opacity:.45}
 <details class="card" open>
   <summary><span class="n">2</span>Term pairs</summary>
   <div class="bd">
+    <div class="row" id="qa">
+      <input type="text" id="qaF" placeholder="Wrong term" autocomplete="off" autocapitalize="off" enterkeyhint="next">
+      <input type="text" id="qaR" placeholder="Correct term (empty = delete)" autocomplete="off" autocapitalize="off" enterkeyhint="done">
+      <button class="sm pri" onclick="quickAdd()">Add pair</button>
+    </div>
     <textarea id="pairs" placeholder="One pair per line:&#10;wrong term => correct term&#10;another wrong => another correct&#10;# lines starting with # are ignored"></textarea>
     <div class="row">
       <button class="sm" onclick="exportPairs()">Export pairs (.txt)</button>
@@ -207,7 +218,11 @@ body.fo #bAll,body.fo #bApply{opacity:.45}
           <button class="sm" onclick="pairDedupe()">Remove duplicates</button>
           <button class="sm" onclick="pairSwap()">Swap sides (undo)</button>
         </div>
-        <p class="hint">Check pairs warns about very short terms, duplicates, chains (a result that a later pair changes again) and invalid patterns. Swap sides turns every "wrong => correct" into "correct => wrong", which is the easiest way to undo a replacement.</p>
+        <div class="row">
+          <button class="sm" onclick="pairNorm()">Fix separators</button>
+          <button class="sm" onclick="undoPrepare()">Prepare undo of last run</button>
+        </div>
+        <p class="hint">Check pairs warns about very short terms, duplicates, chains (a result that a later pair changes again) and invalid patterns. Swap sides turns every "wrong => correct" into "correct => wrong", which is the easiest way to undo a replacement. Fix separators turns tab, -&gt; and → into =&gt; (handy after pasting from a spreadsheet). Prepare undo of last run writes the reverse pairs of your last replace and limits the next run to the files it changed; then run Preview and untick anything that should stay.</p>
       </div>
     </details>
     <p class="hint">Format: <b>wrong =&gt; correct</b>. Leave the correct part empty to delete that word. Several wrong spellings of one term can share a line, separated by " | " (example: tar bhai | tar bhaiya => his brother).</p>
@@ -235,6 +250,14 @@ body.fo #bAll,body.fo #bApply{opacity:.45}
     </div>
     <input type="text" id="nfilter" placeholder="File name filter (optional, e.g. Arc 2)" autocomplete="off">
     <p class="hint">The range uses the chapter number in the file name (Chapter 12, Ch 12, or the first number). Files without a number are skipped. Leave both empty for all chapters.</p>
+    <label class="fl">Files to include
+      <select id="scope">
+        <option value="all">All files in the ticked folders</option>
+        <option value="last">Only files changed in the last run</option>
+        <option value="failed">Only files that failed or were not reached last time</option>
+      </select>
+      <small id="scopeHint"></small>
+    </label>
     <label class="fl">Matching mode
       <select id="mode">
         <option value="lit">Contains (plain text)</option>
@@ -291,6 +314,37 @@ body.fo #bAll,body.fo #bApply{opacity:.45}
     </details>
     <button class="pri" id="bApply" onclick="applySelected()">Replace ticked matches only</button>
   </div>
+  <div class="card" id="tb" hidden>
+    <div id="vinfo" role="status"></div>
+    <div id="vchips" class="selbox"></div>
+    <input type="text" id="vq" placeholder="Filter by file name or line text..." autocomplete="off">
+    <div class="row">
+      <select id="vsort" aria-label="Sort files">
+        <option value="chapter">Sort: chapter order</option>
+        <option value="most">Sort: most matches first</option>
+        <option value="least">Sort: fewest matches first</option>
+      </select>
+      <select id="vctx" aria-label="Context length">
+        <option value="40">Context: short</option>
+        <option value="70">Context: normal</option>
+        <option value="150">Context: long</option>
+      </select>
+    </div>
+    <div class="row">
+      <button class="sm" onclick="vExpand(true)">Expand all</button>
+      <button class="sm" onclick="vExpand(false)">Collapse all</button>
+      <button class="sm" onclick="vReset()">Reset filters</button>
+    </div>
+    <div class="row" id="tickRow">
+      <button class="sm" onclick="vTick(true)">Tick all shown</button>
+      <button class="sm" onclick="vTick(false)">Untick all shown</button>
+    </div>
+    <div class="row">
+      <button class="sm" onclick="vCsv()">Export CSV (shown)</button>
+      <button class="sm" onclick="vCopy()">Copy list (shown)</button>
+    </div>
+    <p class="hint">Filter, sort, CSV and copy work on what is shown. Expand all only affects files already on screen; use "Show more files" to load more.</p>
+  </div>
   <button id="exp" onclick="exportReport()" hidden>Save report (.txt)</button>
   <div id="res"></div>
 </div>
@@ -317,6 +371,13 @@ const fid = s => { s = (s || '').trim(); const m = s.match(/folders\/([A-Za-z0-9
 let CLIENT_ID = store.get('cid', DEFAULTS.cid) || DEFAULTS.cid;
 let ROOT_ID = store.get('root', DEFAULTS.root) || DEFAULTS.root;
 let token = null, stopFlag = false, lastReport = '', wl = null, lastScan = null;
+let selMap = new Map();
+(function () {
+  try {
+    const ids = JSON.parse(store.get('sel', '[]')) || [], pm = JSON.parse(store.get('selp', '{}')) || {};
+    ids.forEach(id => { if (typeof id === 'string') selMap.set(id, typeof pm[id] === 'string' ? pm[id] : id); });
+  } catch (e) {}
+})();
 let _busy = false;
 Object.defineProperty(window, 'busy', {
   get() { return _busy; },
@@ -352,6 +413,7 @@ function saveSettings() {
   const c = $('cid').value.trim() || DEFAULTS.cid;
   const r = fid($('root').value) || DEFAULTS.root;
   if (c !== CLIENT_ID) token = null;
+  if (r !== ROOT_ID) { selMap.clear(); $('list').textContent = ''; folderChanged(); }
   CLIENT_ID = c; ROOT_ID = r;
   $('cid').value = c; $('root').value = r;
   const ok = store.set('cid', c) && store.set('root', r);
@@ -407,6 +469,7 @@ function makeNode(f, path) {
   const lab = document.createElement('label');
   const cb = document.createElement('input');
   cb.type = 'checkbox'; cb.className = 'nv'; cb.value = f.id; cb.dataset.path = path;
+  if (selMap.has(f.id)) { cb.checked = true; selMap.set(f.id, path); }
   lab.append(cb, f.name);
   row.append(tg, lab);
   const kids = document.createElement('div');
@@ -438,22 +501,22 @@ async function loadNovels() {
     list.innerHTML = '<label class="allrow"><input type="checkbox" id="all" onchange="toggleAll(this)"><b>All novels</b></label>';
     for (const f of d) list.append(makeNode(f, f.name));
     if (!d.length) list.textContent = 'No novel folders found.';
-    try {
-      const ids = JSON.parse(store.get('sel', '[]')) || [];
-      document.querySelectorAll('#list > .node > .nrow input.nv').forEach(cb => { if (ids.includes(cb.value)) cb.checked = true; });
-    } catch (e) {}
     filterNovels();
     updateSel();
   } catch (e) { list.textContent = 'Error: ' + e.message; }
 }
 
 function toggleAll(el) {
-  document.querySelectorAll('#list > .node').forEach(nd => { if (!nd.hidden) nd.querySelector('.nrow input.nv').checked = el.checked; });
+  document.querySelectorAll('#list > .node').forEach(nd => { if (!nd.hidden) setBox(nd.querySelector('.nrow input.nv'), el.checked); });
   folderChanged();
 }
 
+function setBox(cb, v) {
+  cb.checked = v;
+  if (v) selMap.set(cb.value, cb.dataset.path); else selMap.delete(cb.value);
+}
 function selectedFolders() {
-  return [...document.querySelectorAll('.nv:checked')].map(cb => ({id: cb.value, path: cb.dataset.path}));
+  return [...selMap].map(([id, path]) => ({id, path}));
 }
 
 function updateFolderSel() {
@@ -466,6 +529,7 @@ function updateFolderSel() {
     b.type = 'button'; b.className = 'chip'; b.title = x.path + ' (tap to remove)';
     b.append(el('span', x.path), el('b', '×'));
     b.onclick = () => {
+      selMap.delete(x.id);
       const c = [...document.querySelectorAll('.nv')].find(n => n.value === x.id);
       if (c) c.checked = false;
       folderChanged();
@@ -477,8 +541,13 @@ function updateSel() { updateFolderSel(); }
 function folderChanged() {
   updateFolderSel();
   store.set('sel', JSON.stringify(selectedFolders().map(x => x.id)));
+  store.set('selp', JSON.stringify(Object.fromEntries(selMap)));
 }
-$('list').addEventListener('change', folderChanged);
+$('list').addEventListener('change', e => {
+  const cb = e.target;
+  if (cb && cb.classList && cb.classList.contains('nv')) { if (cb.checked) selMap.set(cb.value, cb.dataset.path); else selMap.delete(cb.value); }
+  folderChanged();
+});
 function filterNovels() {
   const q = $('nq').value.trim().toLowerCase();
   document.querySelectorAll('#list > .node').forEach(nd => {
@@ -630,14 +699,21 @@ async function scan() {
   let res;
   try { res = pairs.map(p => buildRe(p)); } catch (e) { setStatus('Invalid pattern: ' + e.message); return null; }
   const mode = getMode(), fo = $('fo').checked;
-  const folders = selectedFolders();
-  for (const s of $('extra').value.split(',')) { const f = fid(s); if (f) folders.push({id: f, path: '(extra) ' + f}); }
-  if (!folders.length) { setStatus('Load the novel list and tick at least one folder (or add an extra folder).'); return null; }
+  const sc = $('scope').value, lr = getLastRun();
+  let scoped = null;
+  if (sc !== 'all') {
+    scoped = (lr && (sc === 'last' ? lr.ids : lr.failed)) || [];
+    if (!scoped.length) { setStatus(sc === 'last' ? 'No files are recorded from a last run yet.' : 'No failed or unreached files are recorded.'); return null; }
+  }
+  const folders = scoped ? [] : selectedFolders();
+  if (!scoped) for (const s of $('extra').value.split(',')) { const f = fid(s); if (f) folders.push({id: f, path: '(extra) ' + f}); }
+  if (!scoped && !folders.length) { setStatus('Tick at least one folder (load the novel list first), add an extra folder, or pick a different option under "Files to include" in Step 3.'); return null; }
   if (!token) await login();
   setStatus('Finding files...');
   const map = new Map();
   const rec = $('rec').checked;
-  for (const fl of folders) for (const d of await listDocs(fl.id, rec)) map.set(d.id, d);
+  if (scoped) scoped.forEach(d => map.set(d.id, {id: d.id, name: d.name}));
+  else for (const fl of folders) for (const d of await listDocs(fl.id, rec)) map.set(d.id, d);
   const nf = $('nfilter').value.trim().toLowerCase();
   let docs = [...map.values()].filter(d => !nf || d.name.toLowerCase().includes(nf));
   const fromV = $('rfrom').value.trim(), toV = $('rto').value.trim();
@@ -695,16 +771,17 @@ async function scan() {
     await sleep(400);
   }
   return {docs: docs.length, results, totalMatches, pairs, totals, fileCounts, matchCase, mode, flex: $('flex').checked, fo,
-    folderNames: folders.map(f => f.path), rec, nf, rangeInfo};
+    folderNames: scoped ? ['(files from ' + (sc === 'last' ? 'the last run' : 'the failed list') + ')'] : folders.map(f => f.path), rec, nf, rangeInfo};
 }
 
 /* ---------- rendering ---------- */
 function el(tag, text) { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; return e; }
 
-function ctxParts(m) {
-  const pre = (m.a > 70 ? '…' : '') + m.text.slice(Math.max(0, m.a - 70), m.a);
+function ctxParts(m, n) {
+  n = n || V.ctx || 70;
+  const pre = (m.a > n ? '…' : '') + m.text.slice(Math.max(0, m.a - n), m.a);
   const term = m.text.slice(m.a, m.b);
-  const post = m.text.slice(m.b, m.b + 70) + (m.b + 70 < m.text.length ? '…' : '');
+  const post = m.text.slice(m.b, m.b + n) + (m.b + n < m.text.length ? '…' : '');
   return {pre, term, post};
 }
 
@@ -726,35 +803,168 @@ function buildMatch(m, pair, mode, multi) {
   return wrap;
 }
 
+const PAGE = 25, LINES = 100;
+let V = {r: null, mode: 'done', pair: -1, list: [], n: 0, open: true, ctx: 70};
+
 function showResults(r, mode) {
-  const box = $('res');
+  V.r = r; V.mode = mode; V.pair = -1;
+  $('vq').value = '';
+  $('tb').hidden = !r.results.length;
+  $('tickRow').hidden = mode !== 'review';
+  buildChips();
+  renderList();
+}
+
+function buildChips() {
+  const box = $('vchips'), r = V.r;
   box.textContent = '';
-  const multi = r.pairs.length > 1;
-  for (const f of r.results) {
-    const d = document.createElement('details');
-    d.className = 'file';
-    d.open = r.totalMatches <= 150;
-    const s = document.createElement('summary');
-    if (mode === 'review') {
-      const fc = document.createElement('input');
-      fc.type = 'checkbox'; fc.checked = true;
-      fc.onclick = e => e.stopPropagation();
-      fc.onchange = () => {
-        for (const m of f.matches) if (m.ok) { m.sel = fc.checked; if (m.cb) m.cb.checked = fc.checked; }
-        updateSelInfo();
-      };
-      f.fcb = fc;
-      s.append(fc);
-    }
-    const a = el('a', `${f.name} (${f.matches.length})`);
-    a.href = 'https://docs.google.com/document/d/' + f.id + '/edit';
-    a.target = '_blank'; a.rel = 'noopener';
-    a.onclick = e => e.stopPropagation();
-    s.append(a);
-    d.append(s);
-    for (const m of f.matches) d.append(buildMatch(m, r.pairs[m.k], mode, multi));
-    box.append(d);
+  const cnt = r.pairs.map(() => 0); let tot = 0;
+  r.results.forEach(f => f.matches.forEach(m => { cnt[m.k]++; tot++; }));
+  const mk = (label, k) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip' + (V.pair === k ? ' on' : '');
+    b.append(el('span', label));
+    b.onclick = () => { V.pair = (V.pair === k && k !== -1) ? -1 : k; buildChips(); renderList(); };
+    box.append(b);
+  };
+  mk(`All (${tot})`, -1);
+  r.pairs.forEach((p, k) => { if (r.pairs.length > 1 && cnt[k]) mk(`${k + 1}) ${p.find} (${cnt[k]})`, k); });
+  box.hidden = r.pairs.length < 2;
+}
+
+function viewFiles() {
+  const q = $('vq').value.trim().toLowerCase(), out = [];
+  for (const f of V.r.results) {
+    const nameHit = !!q && f.name.toLowerCase().includes(q);
+    const ms = f.matches.filter(m => (V.pair < 0 || m.k === V.pair) &&
+      (!q || nameHit || m.text.toLowerCase().includes(q) || (m.rep && m.rep.toLowerCase().includes(q))));
+    if (ms.length) out.push({f, ms});
   }
+  const s = $('vsort').value;
+  if (s === 'most') out.sort((a, b) => b.ms.length - a.ms.length);
+  else if (s === 'least') out.sort((a, b) => a.ms.length - b.ms.length);
+  return out;
+}
+
+function renderList() {
+  if (!V.r) return;
+  V.ctx = parseInt($('vctx').value, 10) || 70;
+  V.list = viewFiles();
+  V.n = 0;
+  V.open = V.list.reduce((a, x) => a + x.ms.length, 0) <= 150;
+  $('res').textContent = '';
+  appendNext();
+}
+
+function updateInfo() {
+  const L = V.list || [];
+  const totM = L.reduce((a, x) => a + x.ms.length, 0);
+  const allM = V.r.results.reduce((a, f) => a + f.matches.length, 0);
+  $('vinfo').textContent = L.length ? `Showing ${V.n} of ${L.length} files, ${totM}${totM !== allM ? ' of ' + allM : ''} matches.` : 'No matches for this filter.';
+}
+
+function appendNext() {
+  const box = $('res'), old = $('vfoot');
+  if (old) old.remove();
+  const multi = V.r.pairs.length > 1;
+  const next = V.list.slice(V.n, V.n + PAGE);
+  for (const {f, ms} of next) box.append(buildFile(f, ms, V.open, multi));
+  V.n += next.length;
+  const foot = document.createElement('div');
+  foot.id = 'vfoot'; foot.className = 'row';
+  if (V.n < V.list.length) {
+    const b = el('button', `Show more files (${V.list.length - V.n} left)`);
+    b.onclick = appendNext; foot.append(b);
+  }
+  if (V.list.length > PAGE) {
+    const t = el('button', 'Back to summary');
+    t.onclick = vTop; foot.append(t);
+  }
+  if (foot.children.length) box.append(foot);
+  updateInfo();
+  syncFileBoxes();
+}
+
+function buildFile(f, ms, open, multi) {
+  const d = document.createElement('details');
+  d.className = 'file'; d.open = open;
+  const s = document.createElement('summary');
+  if (V.mode === 'review') {
+    const fc = document.createElement('input');
+    fc.type = 'checkbox'; fc._ms = ms;
+    fc.checked = ms.every(m => !m.ok || m.sel);
+    fc.onclick = e => e.stopPropagation();
+    fc.onchange = () => { for (const m of ms) if (m.ok) setSel(m, fc.checked); updateSelInfo(); };
+    f.fcb = fc;
+    s.append(fc);
+  }
+  const a = el('a', `${f.name} (${ms.length}${ms.length !== f.matches.length ? ' of ' + f.matches.length : ''})`);
+  a.href = 'https://docs.google.com/document/d/' + f.id + '/edit';
+  a.target = '_blank'; a.rel = 'noopener';
+  a.onclick = e => e.stopPropagation();
+  s.append(a);
+  d.append(s);
+  let done = 0, filled = false;
+  const more = el('button', '');
+  more.className = 'sm';
+  const fill = () => {
+    if (more.parentNode) more.remove();
+    const end = Math.min(ms.length, done + LINES);
+    for (; done < end; done++) d.append(buildMatch(ms[done], V.r.pairs[ms[done].k], V.mode, multi));
+    if (done < ms.length) { more.textContent = `Show more lines (${ms.length - done} left)`; d.append(more); }
+  };
+  more.onclick = e => { e.preventDefault(); fill(); };
+  const ensure = () => { if (!filled) { filled = true; fill(); } };
+  if (open) ensure(); else d.addEventListener('toggle', () => { if (d.open) ensure(); });
+  return d;
+}
+
+function vExpand(v) { document.querySelectorAll('#res details.file').forEach(d => { d.open = v; }); }
+function vTop() { const t = $('sum').textContent ? $('sum') : $('tb'); t.scrollIntoView({block: 'start'}); }
+function vReset() {
+  $('vq').value = ''; $('vsort').value = 'chapter'; V.pair = -1;
+  if (!V.r) return;
+  buildChips(); renderList(); vTop();
+}
+function vTick(v) {
+  let n = 0;
+  (V.list || []).forEach(({ms}) => ms.forEach(m => { if (m.ok) { setSel(m, v); n++; } }));
+  updateSelInfo();
+  setStatus(`${v ? 'Ticked' : 'Unticked'} ${n} shown matches.`);
+}
+
+function csvCell(x) { x = String(x == null ? '' : x); return /[",\n\r]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; }
+function vCsv() {
+  if (!V.r || !V.list.length) return setStatus('Nothing to export.');
+  const rows = [['File', 'Link', 'Pair', 'Found', 'Replacement', 'Before', 'After', 'Ticked']];
+  for (const {f, ms} of V.list) for (const m of ms) {
+    const {pre, term, post} = ctxParts(m, 70);
+    rows.push([f.name, 'https://docs.google.com/document/d/' + f.id + '/edit', m.k + 1, term, m.rep === null ? '' : m.rep, pre, post, V.mode === 'review' ? (m.sel ? 'yes' : 'no') : '']);
+  }
+  downloadFile('matches-' + stamp() + '.csv', '﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n'), 'text/csv');
+  setStatus(`CSV exported (${rows.length - 1} matches).`);
+}
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); return true; } catch (e) {}
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = t; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+    document.body.append(ta); ta.select();
+    const ok = document.execCommand('copy'); ta.remove(); return ok;
+  } catch (e) { return false; }
+}
+async function vCopy() {
+  if (!V.r || !V.list.length) return setStatus('Nothing to copy.');
+  const L = []; let n = 0;
+  for (const {f, ms} of V.list) {
+    L.push(`${f.name} (${ms.length})`);
+    for (const m of ms) {
+      const {pre, term, post} = ctxParts(m, 70);
+      L.push(`  [${m.k + 1}] ${pre}${m.rep === null ? '[' + term + ']' : '[' + term + ' => ' + m.rep + ']'}${post}`);
+      n++;
+    }
+  }
+  setStatus((await copyText(L.join('\n'))) ? `Copied ${n} matches.` : 'Copy failed (the browser blocked clipboard access). Use Export CSV instead.');
 }
 
 function updateSelInfo() {
@@ -772,7 +982,7 @@ function eachMatch(fn) {
 function setSel(m, v) { m.sel = v; if (m.cb) m.cb.checked = v; }
 function syncFileBoxes() {
   if (!lastScan) return;
-  for (const f of lastScan.results) if (f.fcb) f.fcb.checked = f.matches.every(m => !m.ok || m.sel);
+  for (const f of lastScan.results) if (f.fcb) f.fcb.checked = (f.fcb._ms || f.matches).every(m => !m.ok || m.sel);
 }
 function selAll(v) { eachMatch(m => setSel(m, v)); updateSelInfo(); }
 function selInvert() { eachMatch(m => setSel(m, !m.sel)); updateSelInfo(); }
@@ -805,9 +1015,10 @@ function fillPairSel(r) {
   });
 }
 function folderSel(mode) {
+  if (mode === 'none' && !$('nq').value.trim()) selMap.clear();
   document.querySelectorAll('.nv').forEach(cb => {
     if (cb.closest('.node[hidden]')) return;
-    cb.checked = mode === 'all' ? true : mode === 'none' ? false : !cb.checked;
+    setBox(cb, mode === 'all' ? true : mode === 'none' ? false : !cb.checked);
   });
   folderChanged();
 }
@@ -856,7 +1067,7 @@ function buildReport(r, label, rows, note) {
   for (const f of r.results) {
     L.push(`${f.name} (${f.matches.length}) https://docs.google.com/document/d/${f.id}/edit`);
     for (const m of f.matches) {
-      const {pre, term, post} = ctxParts(m);
+      const {pre, term, post} = ctxParts(m, 70);
       L.push(`  [${m.k + 1}] ${pre}${m.rep === null ? '[' + term + ']' : '[' + term + ' => ' + m.rep + ']'}${post}`);
     }
   }
@@ -882,7 +1093,8 @@ function exportReport() {
 
 function resetOut() {
   $('sum').textContent = ''; $('res').textContent = '';
-  $('exp').hidden = true; $('rv').hidden = true;
+  $('exp').hidden = true; $('rv').hidden = true; $('tb').hidden = true;
+  V.r = null; V.list = [];
   lastReport = ''; lastScan = null;
 }
 
@@ -930,13 +1142,14 @@ async function applySelected(auto) {
   if (!auto && !confirm(`Folder: ${r.folderNames.join(' | ')}\n\nReplace ${total} ticked matches in ${jobs.length} files?\n(Unticked matches will be skipped.)`)) return;
   busy = true; stopFlag = false;
   await keepAwake();
-  const doneResults = [], failed = [];
+  const doneResults = [], failed = [], failedF = [], handled = new Set();
   const applied = r.pairs.map(() => 0);
   try {
     for (let i = 0; i < jobs.length; i++) {
       if (stopFlag) break;
       const {f, chosen} = jobs[i];
       setStatus(`Replace: ${i + 1}/${jobs.length}`); progress(i + 1, jobs.length);
+      handled.add(f.id);
       const requests = [];
       for (const m of chosen) {
         const repl = m.rep;
@@ -952,15 +1165,18 @@ async function applySelected(auto) {
         doneResults.push({...f, matches: chosen.slice().sort((x, y) => x.ds - y.ds)});
       } catch (e) {
         failed.push(f.name + ' (document changed after the scan, or an error occurred; run Preview again)');
+        failedF.push({id: f.id, name: f.name});
       }
       await sleep(1100);
     }
+    if (stopFlag) jobs.forEach(j => { if (!handled.has(j.f.id)) failedF.push({id: j.f.id, name: j.f.name}); });
+    saveLastRun(r, doneResults, failedF);
     const doneTotal = applied.reduce((a, b) => a + b, 0);
     const r2 = {...r, results: doneResults, totalMatches: doneTotal};
     const rows = r.pairs.map((p, k) => `replaced ${applied[k]} times`);
     showSummary(
       (stopFlag ? 'Stopped. ' : '') + `Done: ${doneTotal} matches replaced in ${doneResults.length} files.` + (complex ? ` ${complex} complex matches were not changed.` : '') +
-      (failed.length ? `\n${failed.length} files failed: ` + failed.join('; ') : ''),
+      (failed.length ? `\n${failed.length} files failed: ` + failed.join('; ') + '\nTo retry only these, choose "Only files that failed or were not reached last time" in Step 3.' : ''),
       r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl} : ${rows[k]}`)
     );
     showResults(r2, 'done');
@@ -1029,7 +1245,9 @@ async function replaceAll() {
       await sleep(1100);
     }
     const stopped = done < r.results.length;
+    const rest = r.results.slice(done).map(f => ({id: f.id, name: f.name}));
     r.results = r.results.slice(0, done);
+    saveLastRun(r, r.results, rest);
     const total = applied.reduce((a, b) => a + b, 0);
     const rows = r.pairs.map((p, k) => `replaced ${applied[k]} times in ${appliedFiles[k]} files`);
     showSummary(
@@ -1055,7 +1273,12 @@ function downloadFile(name, text, type) {
 function showBackupInfo() {
   const t = store.get('lastBackup', '');
   const d = t ? new Date(t) : null;
-  $('bkInfo').textContent = d && !isNaN(d) ? 'Last backup: ' + d.toLocaleString() : 'No backup made yet.';
+  const ok = !!d && !isNaN(d);
+  const days = ok ? Math.floor((Date.now() - d.getTime()) / 864e5) : null;
+  const has = Object.keys(gloss()).length > 0 || $('pairs').value.trim() !== '';
+  const due = has && (!ok || days >= 14);
+  $('bkInfo').textContent = (ok ? 'Last backup: ' + d.toLocaleString() + (days >= 1 ? ' (' + days + ' days ago)' : '') : 'No backup made yet.') + (due ? ' A new backup is recommended.' : '');
+  $('bkSum').textContent = 'Backup and restore' + (due ? ' (backup recommended)' : '');
 }
 function applyOpts(o) {
   OPT_IDS.forEach(i => {
@@ -1069,7 +1292,7 @@ function exportBackup() {
   let opts = {}, sel = [];
   try { opts = JSON.parse(store.get('opts', '{}')) || {}; } catch (e) {}
   try { sel = JSON.parse(store.get('sel', '[]')) || []; } catch (e) {}
-  const data = {cid: CLIENT_ID, root: ROOT_ID, draft: $('pairs').value, gloss: gloss(), opts, sel, theme: store.get('theme', 'auto')};
+  const data = {cid: CLIENT_ID, root: ROOT_ID, draft: $('pairs').value, gloss: gloss(), opts, sel, selp: Object.fromEntries(selMap), theme: store.get('theme', 'auto')};
   const doc = {app: 'bulk-replace', version: 4, date: new Date().toISOString(), data};
   downloadFile('bulk-replace-backup-' + stamp() + '.json', JSON.stringify(doc, null, 2), 'application/json');
   store.set('lastBackup', doc.date); showBackupInfo();
@@ -1103,12 +1326,11 @@ async function importBackup(inp) {
     if (THEMES.includes(d.theme)) { store.set('theme', d.theme); applyTheme(d.theme); }
     if (Array.isArray(d.sel)) {
       const ids = d.sel.filter(x => typeof x === 'string');
-      ok = store.set('sel', JSON.stringify(ids)) && ok;
-      if (acct) { $('list').textContent = ''; updateFolderSel(); }
-      else if (document.querySelector('#list > .node')) {
-        document.querySelectorAll('#list > .node > .nrow input.nv').forEach(cb => { cb.checked = ids.includes(cb.value); });
-        folderChanged();
-      }
+      const pm = d.selp && typeof d.selp === 'object' && !Array.isArray(d.selp) ? d.selp : {};
+      selMap = new Map(ids.map(id => [id, typeof pm[id] === 'string' ? pm[id] : id]));
+      document.querySelectorAll('#list .nv').forEach(cb => { cb.checked = selMap.has(cb.value); if (cb.checked) selMap.set(cb.value, cb.dataset.path); });
+      if (acct) $('list').textContent = '';
+      folderChanged();
     }
     refreshGloss();
     setStatus(`Backup restored (${names.length} glossaries merged).` + (acct ? ' Settings changed, so reload the novel list.' : '') + (ok ? '' : ' Some data could not be saved (browser storage is blocked).'));
@@ -1215,6 +1437,79 @@ function pairCheck() {
   showSummary(W.length ? `Pair check: ${pairs.length} pairs, ${W.length} warnings` : `Pair check: ${pairs.length} pairs, no problems found`, W);
   setStatus(W.length ? `${W.length} warnings found. See the result panel.` : 'No problems found.');
   $('sum').scrollIntoView({block: 'nearest'});
+}
+
+/* ---------- v4.3: quick add, fix separators, last run, undo ---------- */
+function quickAdd() {
+  const f = $('qaF').value.trim(), r = $('qaR').value.trim();
+  if (!f) return setStatus('Type the wrong term first.');
+  if (f.includes('=>') || r.includes('=>')) return setStatus('Do not type "=>" in these boxes; the arrow is added for you.');
+  const lines = pairLines();
+  let upd = false;
+  for (let i = 0; i < lines.length; i++) {
+    if (!isBlankOrNote(lines[i]) && lines[i].indexOf('=>') >= 0 && keyOf(lines[i]) === f) { lines[i] = f + ' => ' + r; upd = true; break; }
+  }
+  if (!upd) { while (lines.length && !lines[lines.length - 1].trim()) lines.pop(); lines.push(f + ' => ' + r); }
+  setPairs(lines.join('\n'), upd ? `Updated the existing pair for "${f}".` : `Added: ${f} => ${r || '(delete)'}`);
+  $('qaF').value = ''; $('qaR').value = ''; $('qaF').focus();
+  const ta = $('pairs'); ta.scrollTop = ta.scrollHeight;
+}
+['qaF', 'qaR'].forEach(i => $(i).addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  if (i === 'qaF' && $('qaF').value.trim() && !$('qaR').value.trim()) $('qaR').focus(); else quickAdd();
+}));
+
+function pairNorm() {
+  let n = 0, left = 0;
+  const out = pairLines().map(l => {
+    if (isBlankOrNote(l) || l.indexOf('=>') >= 0) return l;
+    const m = l.match(/^(.+?)(?:\t+|\s*(?:-->|->|→|⇒)\s*|\s+=\s+)(.*)$/);
+    if (m && m[1].trim()) { n++; return m[1].trim() + ' => ' + m[2].trim(); }
+    left++; return l;
+  });
+  setPairs(out.join('\n'), n ? `Fixed ${n} lines.` + (left ? ` ${left} lines still have no separator.` : '') : (left ? `No known separator found in ${left} lines (looked for tab, ->, → and " = ").` : 'Nothing to fix.'));
+}
+
+function getLastRun() { try { return JSON.parse(store.get('lastRun', 'null')); } catch (e) { return null; } }
+function saveLastRun(r, ok, failed) {
+  if (!ok.length && !failed.length) return;
+  store.set('lastRun', JSON.stringify({
+    t: Date.now(), ids: ok.map(f => ({id: f.id, name: f.name})), failed,
+    pairs: r.pairs.map(p => ({find: p.find, repl: p.repl})), mode: r.mode, flex: !!r.flex, matchCase: !!r.matchCase
+  }));
+  updateScopeHint();
+}
+function updateScopeHint() {
+  const lr = getLastRun();
+  $('scopeHint').textContent = lr ? `Last run (${new Date(lr.t).toLocaleString()}): ${lr.ids.length} files changed, ${lr.failed.length} failed or not reached.` : 'No run recorded yet on this device.';
+}
+function undoPrepare() {
+  const lr = getLastRun();
+  if (!lr || !lr.ids.length) return setStatus('No finished replace is recorded on this device yet.');
+  if (lr.mode === 're') return setStatus('Undo is not available for regular expression runs. Use Docs Version history.');
+  const lines = []; let skipped = 0;
+  for (const p of lr.pairs) {
+    if (!p.repl || p.find.includes(' | ') || p.repl === p.find) { skipped++; continue; }
+    lines.push(p.repl + ' => ' + p.find);
+  }
+  if (!lines.length) return setStatus('Nothing can be undone automatically (deletions and " | " variants cannot be reversed). Use Docs Version history.');
+  lines.reverse();
+  if ($('pairs').value.trim() && !confirm('Replace the current pairs with the reverse pairs of your last run?\n\n(Tip: save the current pairs as a glossary first.)')) return;
+  setPairs(lines.join('\n'), `Undo prepared: ${lines.length} reverse pairs` + (skipped ? ` (${skipped} could not be reversed)` : '') + `, limited to the ${lr.ids.length} files changed. Run Preview and untick anything that should stay.`);
+  $('mode').value = lr.mode; $('flex').checked = !!lr.flex; $('c').checked = !!lr.matchCase; $('fo').checked = false;
+  $('scope').value = 'last';
+  $('mode').dispatchEvent(new Event('change')); $('fo').dispatchEvent(new Event('change'));
+}
+updateScopeHint();
+updateFolderSel();
+{
+  const c = store.get('ctx', '70');
+  $('vctx').value = ['40', '70', '150'].includes(c) ? c : '70';
+  let vt;
+  $('vq').addEventListener('input', () => { clearTimeout(vt); vt = setTimeout(renderList, 200); });
+  $('vsort').addEventListener('change', renderList);
+  $('vctx').addEventListener('change', () => { store.set('ctx', $('vctx').value); renderList(); });
 }
 </script>
 </body>
