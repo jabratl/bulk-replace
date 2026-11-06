@@ -119,6 +119,8 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
 .hi{border:1px solid var(--bd);border-radius:12px;background:var(--sf2);padding:10px 12px;display:grid;gap:6px;margin-bottom:8px}
 .hi .hm{color:var(--mut);font-size:13px;word-break:break-word}
 #hlist{max-height:420px;overflow:auto;overscroll-behavior:contain}
+#gsug:empty{display:none}
+#pcount.bad{color:var(--er)}
 @media(min-width:980px){
 .app{padding-bottom:40px}
 .cols{grid-template-columns:minmax(0,5fr) minmax(0,6fr);align-items:start}
@@ -135,7 +137,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
 <body>
 <div class="app">
 <header class="top">
-  <div class="t"><h1>Bulk Replace<span class="ver">v4.4</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
+  <div class="t"><h1>Bulk Replace<span class="ver">v4.5</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
   <button id="hbtn" onclick="openHistory()" title="History of replace runs">History</button>
   <button class="icon" id="thm" onclick="cycleTheme()" aria-label="Change theme" title="Change theme">Auto</button>
 </header>
@@ -188,6 +190,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
       <button class="sm" onclick="folderSel('invert')">Folders: invert</button>
     </div>
     <div id="selbox" class="selbox none">No folder selected.</div>
+    <div id="gsug" class="row"></div>
     <p class="hint">Only ticked folders (and their subfolders) are processed. Tap ▸ to see subfolders. Tap a chip to remove a folder. Your ticks, including subfolders, are remembered on this device.</p>
     <label class="fl">Extra folders (optional)
       <small>Folder IDs or links of other Drive folders to include besides the ticked ones, separated by commas. Use it for folders outside My Work. It must be a folder, not a single Doc.</small>
@@ -206,6 +209,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
       <button class="sm pri" onclick="quickAdd()">Add pair</button>
     </div>
     <textarea id="pairs" placeholder="One pair per line:&#10;wrong term => correct term&#10;another wrong => another correct&#10;# lines starting with # are ignored"></textarea>
+    <p class="hint" id="pcount"></p>
     <div class="row">
       <button class="sm" onclick="exportPairs()">Export pairs (.txt)</button>
       <button class="sm" onclick="$('fPairs').click()">Import pairs (.txt)</button>
@@ -273,6 +277,14 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
     <label class="sw"><input type="checkbox" id="flex">Flexible spaces (a space in the term matches any run of spaces)</label>
     <label class="sw"><input type="checkbox" id="fo">Find only (list matches, never change anything)</label>
     <label class="sw"><input type="checkbox" id="c" checked>Match case (uppercase/lowercase must match)</label>
+    <label class="fl">Scan speed
+      <select id="speed">
+        <option value="400">Safe (about 2 docs per second)</option>
+        <option value="250">Fast (about 3 docs per second)</option>
+      </select>
+      <small>Fast is quicker on 100+ chapters. If Google's limit is hit, the scan pauses 30 seconds and continues by itself.</small>
+    </label>
+    <button onclick="countDocs()">Count docs and estimate time</button>
   </div>
 </details>
 
@@ -326,6 +338,11 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
           <button class="sm" onclick="selLine('on')">Also select these</button>
           <button class="sm" onclick="selLine('off')">Deselect these</button>
         </div>
+        <div class="row">
+          <button class="sm" onclick="pairCommentSel()">Comment out this pair</button>
+          <button class="sm" onclick="pairCommentZero()">Comment out pairs with 0 matches</button>
+        </div>
+        <p class="hint">Commented lines start with # and are ignored; remove the # to use a pair again. This changes the list for the next Preview, not the review on screen.</p>
         <p class="hint">"Invert" deselects what is selected and selects what is not.</p>
       </div>
     </details>
@@ -382,7 +399,7 @@ const setStatus = m => { $('log').textContent = m; };
 
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } },
-  set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
+  set(k, v) { let r; try { localStorage.setItem(k, v); r = true; } catch (e) { r = false; } if (k === 'draft' && typeof updatePairCount === 'function') updatePairCount(); return r; }
 };
 const fid = s => { s = (s || '').trim(); const m = s.match(/folders\/([A-Za-z0-9_-]+)/); return m ? m[1] : s; };
 
@@ -538,6 +555,7 @@ function selectedFolders() {
 }
 
 function updateFolderSel() {
+  updateGlossSug();
   const s = selectedFolders(), box = $('selbox');
   box.textContent = '';
   if (!s.length) { box.className = 'selbox none'; box.textContent = 'No folder selected.'; return; }
@@ -590,6 +608,7 @@ async function listDocs(folder, recursive) {
 /* ---------- glossary ---------- */
 function gloss() { try { return JSON.parse(store.get('gloss', '{}')) || {}; } catch (e) { return {}; } }
 function refreshGloss() {
+  setTimeout(updateGlossSug, 0);
   const sel = $('gsel');
   sel.innerHTML = '<option value="">-- saved glossaries --</option>';
   for (const k of Object.keys(gloss()).sort()) {
@@ -623,7 +642,7 @@ function delGloss() {
 refreshGloss();
 
 /* ---------- remember options ---------- */
-const OPT_IDS = ['c', 'rec', 'nfilter', 'rfrom', 'rto', 'extra', 'mode', 'flex'];
+const OPT_IDS = ['c', 'rec', 'nfilter', 'rfrom', 'rto', 'extra', 'mode', 'flex', 'speed'];
 function saveOpts() {
   const o = {};
   OPT_IDS.forEach(i => { const e = $(i); o[i] = e.type === 'checkbox' ? e.checked : e.value; });
@@ -710,13 +729,7 @@ function progress(i, n) {
   const pg = $('pg'); pg.hidden = false; pg.max = n || 1; pg.value = i;
 }
 
-async function scan() {
-  const {pairs, bad} = parsePairs();
-  if (bad.length) { setStatus('This line has no "=>": ' + bad[0]); return null; }
-  if (!pairs.length) { setStatus('Write at least one "wrong => correct" line.'); return null; }
-  let res;
-  try { res = pairs.map(p => buildRe(p)); } catch (e) { setStatus('Invalid pattern: ' + e.message); return null; }
-  const mode = getMode(), fo = $('fo').checked;
+async function gatherDocs() {
   const sc = $('scope').value, lr = getLastRun();
   let scoped = null;
   if (sc !== 'all') {
@@ -752,6 +765,19 @@ async function scan() {
       (noNum ? `; ${noNum} files skipped (no chapter number found)` : '');
   }
   if (!docs.length) { setStatus(rangeInfo || 'No docs found (check the folder, range or name filter).'); return null; }
+  return {docs, rangeInfo, folders, scoped, sc, rec, nf};
+}
+
+async function scan() {
+  const {pairs, bad} = parsePairs();
+  if (bad.length) { setStatus('This line has no "=>": ' + bad[0]); return null; }
+  if (!pairs.length) { setStatus('Write at least one "wrong => correct" line.'); return null; }
+  let res;
+  try { res = pairs.map(p => buildRe(p)); } catch (e) { setStatus('Invalid pattern: ' + e.message); return null; }
+  const mode = getMode(), fo = $('fo').checked;
+  const g = await gatherDocs();
+  if (!g) return null;
+  const {docs, rangeInfo, folders, scoped, sc, rec, nf} = g;
   const matchCase = $('c').checked;
   const results = [];
   const totals = pairs.map(() => 0), fileCounts = pairs.map(() => 0);
@@ -786,7 +812,7 @@ async function scan() {
       totalMatches += n;
       counts.forEach((c, k) => { totals[k] += c; if (c) fileCounts[k]++; });
     }
-    await sleep(400);
+    await sleep(readDelay());
   }
   return {docs: docs.length, results, totalMatches, pairs, totals, fileCounts, matchCase, mode, flex: $('flex').checked, fo,
     folderNames: scoped ? ['(files from ' + (sc === 'last' ? 'the last run' : 'the failed list') + ')'] : folders.map(f => f.path), rec, nf, rangeInfo};
@@ -1641,6 +1667,83 @@ $('histOn').checked = store.get('histOn', '1') !== '0';
   });
 }
 renderHistory();
+/* ---------- v4.5: live pair counter, glossary suggestion, comment out, count docs ---------- */
+function readDelay() { return $('speed').value === '250' ? 250 : 400; }
+function updatePairCount() {
+  const {pairs, bad} = parsePairs();
+  const cm = pairLines().filter(l => l.trim().startsWith('#') && l.indexOf('=>') >= 0).length;
+  const t = `${pairs.length} pair${pairs.length === 1 ? '' : 's'}` + (bad.length ? ` · ${bad.length} line${bad.length === 1 ? '' : 's'} without =>` : '') + (cm ? ` · ${cm} commented out` : '');
+  $('pcount').textContent = t;
+  $('pcount').className = 'hint' + (bad.length ? ' bad' : '');
+}
+$('fo').addEventListener('change', updatePairCount);
+
+function updateGlossSug() {
+  const box = $('gsug');
+  if (!box) return;
+  box.textContent = '';
+  const names = [...new Set([...selMap.values()].map(p => String(p).split(' / ')[0]).filter(n => n && !n.startsWith('(extra)')))];
+  if (!names.length || names.length > 3) return;
+  const g = gloss(), keys = Object.keys(g);
+  for (const n of names) {
+    const key = keys.find(k => k.toLowerCase() === n.toLowerCase());
+    const b = document.createElement('button');
+    b.className = 'sm';
+    if (key) {
+      b.textContent = `Load glossary "${key}"`;
+      b.onclick = () => {
+        const cur = $('pairs').value;
+        if (cur.trim() && cur !== g[key] && !confirm(`Replace the current pairs with glossary "${key}"?`)) return;
+        $('gsel').value = key; loadGloss();
+      };
+      box.append(b);
+    } else if (names.length === 1 && $('pairs').value.trim()) {
+      b.textContent = `Save pairs as glossary "${n}"`;
+      b.onclick = () => { $('gname').value = n; saveGloss(); };
+      box.append(b);
+    }
+  }
+}
+$('pairs').addEventListener('input', () => { clearTimeout(window._gst); window._gst = setTimeout(updateGlossSug, 400); });
+
+function commentPairs(finds) {
+  const L = pairLines(); let n = 0;
+  for (const f of finds) {
+    const i = L.findIndex(l => !isBlankOrNote(l) && l.indexOf('=>') >= 0 && keyOf(l) === f);
+    if (i >= 0) { L[i] = '# ' + L[i].trimStart(); n++; }
+  }
+  return {n, text: L.join('\n')};
+}
+function pairCommentSel() {
+  if (!lastScan) return setStatus('Run Preview first.');
+  const k = parseInt($('pairSel').value, 10);
+  if (isNaN(k) || !lastScan.pairs[k]) return setStatus('Choose a pair first.');
+  const r = commentPairs([lastScan.pairs[k].find]);
+  if (!r.n) return setStatus('That pair was not found in the list (it may have been edited).');
+  setPairs(r.text, `Commented out pair ${k + 1}. It will be ignored in the next Preview.`);
+}
+function pairCommentZero() {
+  if (!lastScan) return setStatus('Run Preview first.');
+  const finds = lastScan.pairs.filter((p, k) => !lastScan.totals[k]).map(p => p.find);
+  if (!finds.length) return setStatus('Every pair has at least one match.');
+  const r = commentPairs(finds);
+  setPairs(r.text, `Commented out ${r.n} pairs with no matches. They will be ignored in the next Preview.`);
+}
+
+async function countDocs() {
+  if (busy) return;
+  busy = true; stopFlag = false;
+  try {
+    const g = await gatherDocs();
+    if (!g) return;
+    const fmt = sec => sec < 90 ? Math.max(1, Math.round(sec)) + ' seconds' : Math.round(sec / 60) + ' minutes';
+    const n = g.docs.length, scan = n * (readDelay() / 1000 + 0.3);
+    setStatus(`${n} docs match (${g.scoped ? 'from the last-run list' : g.folders.length + (g.folders.length === 1 ? ' folder' : ' folders')}). Scan takes about ${fmt(scan)}; replacing takes up to ${fmt(n * 1.4)} more if every doc has matches.`);
+  } catch (e) { setStatus('Error: ' + e.message); }
+  finally { busy = false; }
+}
+updatePairCount();
+updateGlossSug();
 updateScopeHint();
 updateFolderSel();
 {
