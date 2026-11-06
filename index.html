@@ -91,6 +91,8 @@ details.box{border:1px solid var(--bd);border-radius:12px;background:var(--sf2)}
 .hor>*{flex:1 1 110px;min-width:0}
 .hor:last-child{border-bottom:0}
 #auList:empty::before{content:"Run the audit to see counts per term."}
+#rwMap:empty::before{content:"No raw folder linked yet.";display:block;padding:14px 8px;text-align:center;color:var(--mut);font-size:14px}
+#rwList:empty::before{content:"Run Find raw terms to see chapters per entry.";display:block;padding:14px 8px;text-align:center;color:var(--mut);font-size:14px}
 #cxList:empty::before{content:"Run the finder to see terms.";display:block;padding:18px 8px;text-align:center;color:var(--mut);font-size:14px}
 .exr .au{display:block;font-size:13px;color:var(--mut)}
 div.smbox{border:1px solid var(--bd);border-radius:12px;background:var(--sf2);padding:10px 12px}
@@ -162,7 +164,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
 <body>
 <div class="app">
 <header class="top">
-  <div class="t"><h1>Bulk Replace<span class="ver">v5.9</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
+  <div class="t"><h1>Bulk Replace<span class="ver">v5.12</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
   <button id="hbtn" onclick="openHistory()" title="History of replace runs">History</button>
   <button class="icon" id="thm" onclick="cycleTheme()" aria-label="Change theme" title="Change theme">Auto</button>
 </header>
@@ -331,6 +333,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
     </div>
     <div class="geed" id="geEd" hidden>
       <label>Raw term (JP / KR / CN / RU / EN, optional)<input type="text" id="geRaw" autocomplete="off"></label>
+      <p class="hint" id="geRawCh"></p>
       <label>Wrong forms (one per line)<textarea id="geWrong" autocomplete="off"></textarea></label>
       <label>Correct term (empty = delete the wrong form)<input type="text" id="geCor" autocomplete="off"></label>
       <div class="row">
@@ -346,7 +349,13 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
       </div>
       <div class="row">
         <label>Match mode<select id="geMode"><option value="">Step 3 setting</option><option value="lit">Contains</option><option value="word">Whole word</option></select></label>
+        <label>Capitalization of correct term<select id="geCap"><option value="">As typed</option><option value="title">Title Case</option><option value="upper">UPPER CASE</option><option value="lower">lower case</option></select></label>
         <label>Keep capitalization<select id="geKeep"><option value="">Step 3 setting</option><option value="on">On</option><option value="off">Off</option></select></label>
+      </div>
+      <div class="row">
+        <label>Only apply<select id="geCtx"><option value="">Anywhere</option><option value="dlg">Only in dialogue (inside quotes)</option><option value="near">Only near a word</option><option value="far">Not near a word</option></select></label>
+        <label>Word<input type="text" id="geCw" autocomplete="off"></label>
+        <label>Within (characters)<input type="number" id="geCn" min="1" max="500" placeholder="50" inputmode="numeric"></label>
       </div>
       <div class="row">
         <button class="pri" onclick="geSave()">Save entry</button>
@@ -363,6 +372,19 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
     <div class="gerev" id="geRevOut" hidden></div>
     <div class="exl" id="geList"></div>
     <p class="hint" id="geInfo"></p>
+    <details class="box" id="rwBox">
+      <summary>Raw chapters (where each raw term appears)</summary>
+      <div class="bd">
+        <p class="hint">Link a novel to the Drive folder with its raw chapters (Google Docs, chapter number in the file name). "Find raw terms" reads the raw docs and stores, for every entry with a Raw term, the chapters where it appears. Nothing is written to Docs.</p>
+        <select id="rwNov" aria-label="Novel"></select>
+        <input type="text" id="rwFolder" placeholder="Raw folder link or ID" autocomplete="off">
+        <div class="row"><button class="sm" onclick="rwSave()">Save link</button><button class="sm" onclick="rwRemove()">Remove link</button></div>
+        <div class="exl" id="rwMap"></div>
+        <button class="pri" id="rwRun" onclick="rwRun()">Find raw terms</button>
+        <p class="hint" id="rwInfo" role="status"></p>
+        <div class="exl" id="rwList"></div>
+      </div>
+    </details>
     <details class="box" id="geIO">
       <summary>Import and export entries</summary>
       <div class="bd">
@@ -470,7 +492,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
           <div class="bd">
             <label class="fl">Ignored words (spaces or commas)<textarea id="cxStop" autocomplete="off"></textarea></label>
             <button class="sm" onclick="cxStopReset()">Reset ignored words</button>
-            <label class="fl">Do not translate (one term per line; hidden from the list)<textarea id="cxDnt" autocomplete="off"></textarea></label>
+            <label class="fl">Do not translate (one term per line; Replace never changes text inside these terms)<textarea id="cxDnt" autocomplete="off"></textarea></label>
           </div>
         </details>
       </div>
@@ -878,7 +900,7 @@ function saveOpts() {
 /* ---------- parsing / scanning ---------- */
 function getMode() { const m = $('mode').value; return m === 'word' || m === 're' ? m : 'lit'; }
 function buildRe(p) {
-  const gm = getMode(), mode = gm !== 're' && p.opts && p.opts.mode ? p.opts.mode : gm, flex = $('flex').checked, ci = !$('c').checked;
+  const gm = getMode(), mode = gm !== 're' && p.opts && p.opts.mode ? p.opts.mode : (gm === 'lit' && (p.fw !== undefined ? p.fw : pairForced(p)) ? 'word' : gm), flex = $('flex').checked, ci = !$('c').checked;
   if (mode === 're') {
     try { return new RegExp(p.find, 'gu' + (ci ? 'i' : '')); } catch (e) { return new RegExp(p.find, 'g' + (ci ? 'i' : '')); }
   }
@@ -975,6 +997,28 @@ function expandRepl(repl, m) {
 }
 function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
+/* v5.10: risk flags (short Latin/Cyrillic terms and common words are forced to whole word in Contains mode) + Do-not-translate (DNT) protection */
+function riskyFind(find) {
+  const stop = cxStopSet();
+  return find.split(' | ').map(x => x.trim()).filter(Boolean).some(a => /^[\p{Script=Latin}\p{Script=Cyrillic}'\u2019-]+$/u.test(a) && (Array.from(a).length <= 3 || stop.has(a.toLowerCase())));
+}
+function pairForced(p) { return getMode() === 'lit' && !(p.opts && p.opts.mode) && riskyFind(p.find); }
+let _dntKey = null, _dntRe = null;
+function dntRe() {
+  const L = dntGet().filter(Boolean), k = L.join('\n');
+  if (k !== _dntKey) { _dntKey = k; _dntRe = L.length ? new RegExp(L.sort((a, b) => b.length - a.length).map(escapeRegExp).join('|'), 'g') : null; }
+  return _dntRe;
+}
+function dntRanges(text, re) {
+  const out = []; if (!re) return out; re.lastIndex = 0; let m;
+  while ((m = re.exec(text))) { if (!m[0].length) { re.lastIndex++; continue; } out.push([m.index, m.index + m[0].length]); }
+  return out;
+}
+function titleCase(t) {
+  const small = new Set(['of', 'the', 'and', 'a', 'an', 'in', 'on', 'to', 'for', 'at', 'by', 'or']);
+  return t.split(/(\s+)/).map((w, i) => /^\s*$/.test(w) ? w : (i > 0 && small.has(w.toLowerCase()) ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1))).join('');
+}
+function capApply(t, c) { return c === 'title' ? titleCase(t) : c === 'upper' ? t.toUpperCase() : c === 'lower' ? t.toLowerCase() : t; }
 /* v5.9: optional trailing ` @{json}` on the right side = per-pair options {from,to,mode(lit|word),keep(bool)} */
 const META_RE = /(?:^|\s)@(\{[^{}]*\})\s*$/;
 function parseMeta(s) {
@@ -986,16 +1030,42 @@ function parseMeta(s) {
   if (ni(o.to) !== null) q.to = ni(o.to);
   if (o.mode === 'lit' || o.mode === 'word') q.mode = o.mode;
   if (typeof o.keep === 'boolean') q.keep = o.keep;
+  if (o.ctx === 'dlg' || ((o.ctx === 'near' || o.ctx === 'far') && typeof o.cw === 'string' && o.cw.trim() && o.cw.length <= 60 && !/[{}]/.test(o.cw))) {
+    q.ctx = o.ctx;
+    if (o.ctx !== 'dlg') { q.cw = o.cw.trim(); const c = ni(o.cn); q.cn = c >= 1 && c <= 500 ? c : 50; }
+  }
   const has = Object.keys(q).length > 0;
   return {repl: s.slice(0, m.index).trimEnd(), opts: has ? q : null, meta: has ? ' @' + JSON.stringify(q) : ''};
 }
 function pairTag(p) {
-  const o = p && p.opts; if (!o) return '';
-  const t = [];
+  const o = p && p.opts, t = [];
+  if (p && pairForced(p)) t.push('whole word (auto: short or common)');
+  if (!o && !t.length) return '';
+  if (o) {
   if (o.from != null || o.to != null) t.push('ch ' + (o.from != null ? o.from : '..') + '-' + (o.to != null ? o.to : '..'));
   if (o.mode) t.push(o.mode === 'word' ? 'whole word' : 'contains');
   if (o.keep != null) t.push(o.keep ? 'keep case' : 'no keep case');
+  if (o.ctx) t.push(o.ctx === 'dlg' ? 'only in dialogue' : (o.ctx === 'near' ? 'near "' : 'not near "') + (o.cw || '') + (o.ctx === 'dlg' ? '' : '" (' + o.cn + ')'));
+  }
   return t.length ? ' [' + t.join('; ') + ']' : '';
+}
+/* v5.11: context conditions, evaluated on the original paragraph text */
+function quoteSpans(t) {
+  const q = {'"': '"', '\u201C': '\u201D', '\u00AB': '\u00BB', '\u300C': '\u300D', '\u300E': '\u300F', '\u2018': '\u2019'}, sp = [];
+  let exp = null, st = 0;
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    if (exp === null) { if (q[ch]) { exp = q[ch]; st = i + 1; } }
+    else if (ch === exp && !(ch === '\u2019' && /\p{L}/u.test(t[i + 1] || ''))) { sp.push([st, i]); exp = null; }
+  }
+  if (exp !== null) sp.push([st, t.length]);
+  return sp;
+}
+function ctxOk(o, t, a, b, sp) {
+  if (o.ctx === 'dlg') return sp.some(x => a >= x[0] && b <= x[1]);
+  const w = o.cw.toLowerCase(), n = o.cn, lo = t.toLowerCase();
+  const hit = lo.slice(Math.max(0, a - n), a).includes(w) || lo.slice(b, b + n).includes(w);
+  return o.ctx === 'near' ? hit : !hit;
 }
 function pairIn(p, n) {
   const o = p.opts; if (!o || (o.from == null && o.to == null)) return true;
@@ -1105,8 +1175,9 @@ async function scan() {
   if (!g) return null;
   const {docs, rangeInfo, folders, scoped, sc, rec, nf} = g;
   const matchCase = $('c').checked;
-  const results = [];
+  const results = [], dre = dntRe();
   const totals = pairs.map(() => 0), fileCounts = pairs.map(() => 0);
+  let dntSkip = 0, ctxSkip = 0;
   let totalMatches = 0, stopped = false, scanned = docs.length;
   for (let i = 0; i < docs.length; i++) {
     if (stopFlag) { stopped = true; scanned = i; stopFlag = false; break; }
@@ -1117,6 +1188,7 @@ async function scan() {
     const counts = pairs.map(() => 0), matches = [];
     const nn = chNo(docs[i].name), okK = pairs.map(q => pairIn(q, nn));
     for (const p of paras) {
+      const dr = dntRanges(p.text, dre); let sp = null;
       for (let k = 0; k < pairs.length; k++) {
         if (!okK[k]) continue;
         const re = res[k];
@@ -1125,6 +1197,9 @@ async function scan() {
         while ((m = re.exec(p.text))) {
           if (!m[0].length) { re.lastIndex++; continue; }
           const a = m.index, b = a + m[0].length;
+          if (dr.length && dr.some(x => a < x[1] && x[0] < b)) { dntSkip++; continue; }
+          const co = pairs[k].opts;
+          if (co && co.ctx) { if (co.ctx === 'dlg' && !sp) sp = quoteSpans(p.text); if (!ctxOk(co, p.text, a, b, sp)) { ctxSkip++; continue; } }
           const ds = toDoc(p.segs, a), last = toDoc(p.segs, b - 1);
           const de = last === null ? null : last + 1;
           const ok = ds !== null && de !== null && de - ds === b - a;
@@ -1143,7 +1218,7 @@ async function scan() {
     await sleep(readDelay());
   }
   if (stopped && !scanned) { setStatus('Stopped.'); return null; }
-  return {docs: scanned, totalDocs: docs.length, stopped, keep: kc, results, totalMatches, pairs, totals, fileCounts, matchCase, mode, flex: $('flex').checked, smart: $('smart').checked && mode !== 're', fo,
+  return {docs: scanned, totalDocs: docs.length, stopped, dnt: dntSkip, ctx: ctxSkip, dntOn: !!dre, keep: kc, results, totalMatches, pairs, totals, fileCounts, matchCase, mode, flex: $('flex').checked, smart: $('smart').checked && mode !== 're', fo,
     folderNames: scoped ? ['(files from ' + (sc === 'last' ? 'the last run' : 'the failed list') + ')'] : folders.map(f => f.path), rec, nf, rangeInfo};
 }
 
@@ -1434,6 +1509,8 @@ function buildReport(r, label, rows, note) {
   L.push('Folder: ' + r.folderNames.join(' | '));
   L.push('Include subfolders: ' + (r.rec ? 'yes' : 'no') + (r.nf ? '; name filter: ' + r.nf : ''));
   if (r.rangeInfo) L.push(r.rangeInfo);
+  if (r.dntOn) L.push('Do-not-translate: ' + (r.dnt || 0) + ' matches skipped');
+  if (r.ctx) L.push('Context conditions: ' + r.ctx + ' matches skipped');
   L.push(`Docs checked: ${r.docs}, files with matches: ${r.results.length}, matches: ${r.totalMatches}`);
   if (note) L.push(note);
   L.push('');
@@ -1486,7 +1563,7 @@ async function preview() {
     lastScan = r;
     fillPairSel(r);
     showSummary(
-      `${r.fo ? 'Find only' : 'Preview'}: ${r.docs} docs checked, ${r.totalMatches} matches in ${r.results.length} files.${r.fo ? '' : ' Nothing has been changed yet.'}` + (r.stopped ? ` The scan was stopped early (${r.docs} of ${r.totalDocs} docs checked).` : '') +
+      `${r.fo ? 'Find only' : 'Preview'}: ${r.docs} docs checked, ${r.totalMatches} matches in ${r.results.length} files.${r.fo ? '' : ' Nothing has been changed yet.'}` + (r.dnt ? ` ${r.dnt} matches skipped (inside Do-not-translate terms).` : '') + (r.ctx ? ` ${r.ctx} matches skipped (context condition not met).` : '') + (r.stopped ? ` The scan was stopped early (${r.docs} of ${r.totalDocs} docs checked).` : '') +
       (r.rangeInfo ? '\n' + r.rangeInfo : ''),
       r.pairs.map((p, k) => `${k + 1}) ${r.fo ? p.find : p.find + ' => ' + p.repl}${pairTag(p)} : ${r.totals[k]} matches, ${r.fileCounts[k]} files`)
     );
@@ -1582,7 +1659,7 @@ async function replaceAll() {
     }
     const short = r.pairs.some(p => p.find.length < 3);
     const pw = pairWarnings().W.filter(w => !/very short|will be deleted/.test(w));
-    const adv = r.mode !== 'lit' || r.flex || r.smart || r.keep || r.pairs.some(p => p.find.includes(' | ')) || r.pairs.some(p => p.opts);
+    const adv = r.mode !== 'lit' || r.flex || r.smart || r.keep || r.pairs.some(p => p.find.includes(' | ')) || r.pairs.some(p => p.opts) || r.pairs.some(p => pairForced(p)) || r.dntOn;
     const msg = `Folder: ${r.folderNames.join(' | ')}\n\n${r.rangeInfo ? r.rangeInfo + '\n\n' : ''}${r.stopped ? 'The scan was stopped early: only ' + r.docs + ' of ' + r.totalDocs + ' docs were checked.\n\n' : ''}${r.totalMatches} matches in ${r.results.length} files, ${r.pairs.length} pairs.` +
       (short ? '\n\nWarning: some terms are very short and may also change other words.' : '') +
       (pw.length ? '\n\nPair check: ' + pw.length + ' warning' + (pw.length === 1 ? '' : 's') + '. First: ' + pw[0] + ' (see "Check pairs" in Step 2 for all of them.)' : '') +
@@ -1675,7 +1752,7 @@ function exportBackup() {
   let opts = {}, sel = [];
   try { opts = JSON.parse(store.get('opts', '{}')) || {}; } catch (e) {}
   try { sel = JSON.parse(store.get('sel', '[]')) || []; } catch (e) {}
-  const data = {cid: CLIENT_ID, root: ROOT_ID, draft: $('pairs').value, gloss: gloss(), opts, sel, selp: Object.fromEntries(selMap), profiles: profs(), glex: glexAll(), honor: honorAll(), dnt: dntGet(), cxstop: cxStopText(), theme: store.get('theme', 'auto')};
+  const data = {cid: CLIENT_ID, root: ROOT_ID, draft: $('pairs').value, gloss: gloss(), opts, sel, selp: Object.fromEntries(selMap), profiles: profs(), glex: glexAll(), honor: honorAll(), rawmap: rwGet(), rawinfo: rwInfoGet(), dnt: dntGet(), cxstop: cxStopText(), theme: store.get('theme', 'auto')};
   if ($('bkHist').checked) data.hist = getHist();
   const doc = {app: 'bulk-replace', version: 5, date: new Date().toISOString(), data};
   downloadFile('bulk-replace-backup-' + stamp() + '.json', JSON.stringify(doc, null, 2), 'application/json');
@@ -1740,6 +1817,8 @@ async function importBackup(inp) {
     if (d.honor && typeof d.honor === 'object' && !Array.isArray(d.honor)) { store.set('honor', JSON.stringify(honorClean(d.honor))); hoRender(); }
     if (Array.isArray(d.dnt)) { store.set('dnt', JSON.stringify(d.dnt.filter(x => typeof x === 'string').slice(0, 5000))); }
     if (typeof d.cxstop === 'string') store.set('cxstop', d.cxstop.slice(0, 20000));
+    if (d.rawmap && typeof d.rawmap === 'object' && !Array.isArray(d.rawmap)) { const M = rwGet(); for (const k of Object.keys(d.rawmap)) if (typeof d.rawmap[k] === 'string') M[k] = d.rawmap[k]; store.set('rawmap', JSON.stringify(M)); }
+    if (d.rawinfo && typeof d.rawinfo === 'object' && !Array.isArray(d.rawinfo)) store.set('rawinfo', JSON.stringify(Object.assign(rwInfoGet(), d.rawinfo)));
     cxLoadLists();
     refreshGloss();
     setStatus(`Backup restored (${names.length} glossaries merged` + (histN ? `, ${histN} history runs added` : '') + (exN ? `, ${exN} entry sets merged` : '') + `).` + (acct ? ' Settings changed, so reload the novel list.' : '') + (ok ? '' : ' Some data could not be saved (browser storage is blocked).'));
@@ -1837,6 +1916,8 @@ function pairWarnings() {
   pairs.forEach((p, i) => {
     const n = i + 1;
     if (mode === 're') { try { buildRe(p); } catch (e) { W.push(`Pair ${n}: invalid pattern (${e.message}).`); } return; }
+    if (pairForced(p)) W.push(`Pair ${n}: "${p.find}" is short or a common word, so it is matched as a whole word only (add @{"mode":"lit"} after the replacement to match inside words).`);
+    if (dntGet().some(d => p.find.split(' | ').some(x => x.trim().toLowerCase() === d.toLowerCase()))) W.push(`Pair ${n}: "${p.find}" is on the Do-not-translate list, so it will never be replaced.`);
     if (p.find.length < 3) W.push(`Pair ${n}: "${p.find}" is very short and may also match inside other words` + (mode === 'lit' ? ' (try the Whole word mode).' : '.'));
     if (p.repl === p.find) W.push(`Pair ${n}: both sides are the same, so nothing changes.`);
     if (!p.repl) W.push(`Pair ${n}: "${p.find}" will be deleted (empty replacement).`);
@@ -2348,6 +2429,7 @@ function entryMeta(e) {
   if (Number.isFinite(e.to)) q.to = e.to;
   if (r.mode === 'lit' || r.mode === 'word') q.mode = r.mode;
   if (r.keep === true || r.keep === false) q.keep = r.keep;
+  if (r.ctx === 'dlg' || ((r.ctx === 'near' || r.ctx === 'far') && r.cw)) { q.ctx = r.ctx; if (r.ctx !== 'dlg') { q.cw = r.cw; q.cn = r.cn || 50; } }
   return Object.keys(q).length ? ' @' + JSON.stringify(q) : '';
 }
 function entriesToPairs(arr, hon) {
@@ -2359,7 +2441,7 @@ function entriesToPairs(arr, hon) {
       const low = new Set(w.map(x => x.toLowerCase()));
       w.slice().forEach(x => { const q = x.split(/\s+/); if (q.length === 2) { const y = q[1] + ' ' + q[0]; if (!low.has(y.toLowerCase())) { low.add(y.toLowerCase()); w.push(y); } } });
     }
-    const cor = String(e.correct || '').trim(), meta = entryMeta(e);
+    const cor = capApply(String(e.correct || '').trim(), e.rules && e.rules.cap), meta = entryMeta(e);
     /* honorific lines go BEFORE the plain line (pairs run top to bottom) */
     if (e.rules && e.rules.honor && cor) {
       const HL = hon[e.lang] || [];
@@ -2392,6 +2474,7 @@ function pairsToEntries(text) {
     if (!left || seen.has(left)) continue;
     seen.add(left);
     const rules = {}; if (o.mode) rules.mode = o.mode; if (o.keep != null) rules.keep = o.keep;
+    if (o.ctx) { rules.ctx = o.ctx; if (o.cw) { rules.cw = o.cw; rules.cn = o.cn; } }
     out.push(entryNew({wrong: left.split(' | ').map(x => x.trim()).filter(Boolean), correct, from: o.from, to: o.to, rules}));
   }
   return out;
@@ -2472,6 +2555,9 @@ function geOpen(id) {
   $('geSwap').checked = !!(e && e.rules && e.rules.swap); $('geHon').checked = !!(e && e.rules && e.rules.honor);
   $('geFrom').value = e && e.from != null ? e.from : ''; $('geTo').value = e && e.to != null ? e.to : '';
   $('geMode').value = e && e.rules && e.rules.mode ? e.rules.mode : ''; $('geKeep').value = e && e.rules && e.rules.keep != null ? (e.rules.keep ? 'on' : 'off') : '';
+  $('geCap').value = e && e.rules && e.rules.cap ? e.rules.cap : '';
+  $('geCtx').value = e && e.rules && e.rules.ctx ? e.rules.ctx : ''; $('geCw').value = e && e.rules && e.rules.cw ? e.rules.cw : ''; $('geCn').value = e && e.rules && e.rules.cn ? e.rules.cn : '';
+  $('geRawCh').textContent = e && e.rawCh && e.rawCh.length ? 'Raw term appears in chapters: ' + rangeList(e.rawCh) : '';
   $('geDelB').hidden = !e; $('geEd').hidden = false;
   $('geEd').scrollIntoView({block: 'nearest', behavior: 'smooth'});
   $(e ? 'geCor' : 'geRaw').focus({preventScroll: true});
@@ -2489,13 +2575,18 @@ function geSave() {
   const from = fv === '' ? null : parseInt(fv, 10), to = tv === '' ? null : parseInt(tv, 10);
   if ((from !== null && !(from >= 0)) || (to !== null && !(to >= 0))) return setStatus('Chapter numbers must be 0 or more.');
   if (from !== null && to !== null && from > to) return setStatus('"Chapters from" must not be larger than "Chapters to".');
+  const cx = $('geCtx').value, cw = $('geCw').value.trim(), cnv = parseInt($('geCn').value, 10);
+  if ((cx === 'near' || cx === 'far') && !cw) return setStatus('Write the word for the "near" / "not near" condition.');
+  if (/[{}]/.test(cw) || cw.length > 60) return setStatus('The condition word must be under 60 characters and cannot contain { or }.');
   const data = {raw, wrong, correct: $('geCor').value, lang: $('geLang').value, type: $('geType').value, note: $('geNote').value.trim(), from, to};
   const i = geEditId ? list.findIndex(x => x.id === geEditId) : -1;
   const rl = Object.assign({}, i >= 0 ? list[i].rules : {}); if ($('geSwap').checked) rl.swap = true; else delete rl.swap;
   if ($('geHon').checked) rl.honor = true; else delete rl.honor;
+  if (cx) { rl.ctx = cx; if (cx !== 'dlg') { rl.cw = cw; rl.cn = cnv >= 1 && cnv <= 500 ? cnv : 50; } else { delete rl.cw; delete rl.cn; } } else { delete rl.ctx; delete rl.cw; delete rl.cn; }
+  if ($('geCap').value) rl.cap = $('geCap').value; else delete rl.cap;
   if ($('geMode').value) rl.mode = $('geMode').value; else delete rl.mode;
   if ($('geKeep').value) rl.keep = $('geKeep').value === 'on'; else delete rl.keep;
-  if (i >= 0) { const o = list[i]; list[i] = Object.assign(entryNew(data), {id: o.id, rawCh: o.rawCh, rules: rl}); }
+  if (i >= 0) { const o = list[i]; list[i] = Object.assign(entryNew(data), {id: o.id, rawCh: o.raw === raw ? o.rawCh : [], rules: rl}); }
   else list.push(entryNew(Object.assign(data, {rules: rl})));
   if (!glexSet(name, list)) return setStatus('Not saved (browser storage is blocked).');
   geClose(); renderEntries();
@@ -2773,7 +2864,7 @@ async function glossaryAudit() {
     info = pairs.map(p => {
       const vs = mode === 're' ? [p.find] : p.find.split(' | ').map(x => x.trim()).filter(Boolean);
       /* each variant as an anchored regex, to say which variant a match of the whole pair was */
-      const an = vs.length > 1 ? vs.map(v => { const r = buildRe({find: v, opts: p.opts}); return new RegExp('^(?:' + r.source + ')$', r.flags.replace('g', '')); }) : null;
+      const an = vs.length > 1 ? vs.map(v => { const r = buildRe({find: v, opts: p.opts, fw: pairForced(p)}); return new RegExp('^(?:' + r.source + ')$', r.flags.replace('g', '')); }) : null;
       return {vs, an};
     });
   } catch (e) { return setStatus('Invalid pattern: ' + e.message); }
@@ -2783,7 +2874,7 @@ async function glossaryAudit() {
     const g = await gatherDocs();
     if (!g) return;
     const T = pairs.map((p, k) => ({k, find: p.find, repl: p.repl, meta: p.meta || '', n: 0, files: 0, v: info[k].vs.map(() => 0), other: 0, nov: {}}));
-    const N = {};
+    const N = {}, dre = dntRe(); let dntSk = 0, ctxSk = 0;
     const pass = await textPass(g.docs, async (doc, paras) => {
       const nv = doc.nov || '(selected files)', nr = N[nv] = N[nv] || {docs: 0, files: 0, n: 0, terms: new Set()};
       nr.docs++;
@@ -2791,9 +2882,13 @@ async function glossaryAudit() {
       for (const para of paras) for (let k = 0; k < pairs.length; k++) {
         if (!okK[k]) continue;
         const re = res[k]; re.lastIndex = 0;
+        const dr = dntRanges(para.text, dre); let sp = null;
         let m;
         while ((m = re.exec(para.text))) {
           if (!m[0].length) { re.lastIndex++; continue; }
+          if (dr.length && dr.some(x => m.index < x[1] && x[0] < m.index + m[0].length)) { dntSk++; continue; }
+          const co = pairs[k].opts;
+          if (co && co.ctx) { if (co.ctx === 'dlg' && !sp) sp = quoteSpans(para.text); if (!ctxOk(co, para.text, m.index, m.index + m[0].length, sp)) { ctxSk++; continue; } }
           c[k]++;
           const an = info[k].an;
           if (an) { const j = an.findIndex(r => r.test(m[0])); if (j < 0) T[k].other++; else T[k].v[j]++; }
@@ -2810,7 +2905,7 @@ async function glossaryAudit() {
       if (hit) { nr.files++; nr.n += hit; }
     }, 'Audit');
     if (pass.stopped && !pass.done) { setStatus('Stopped.'); return; }
-    auLast = {T, N, docs: pass.done, totalDocs: g.docs.length, stopped: pass.stopped, failed: pass.failed, mode, flex: $('flex').checked, smart: $('smart').checked && mode !== 're',
+    auLast = {T, N, dnt: dntSk, ctx: ctxSk, docs: pass.done, totalDocs: g.docs.length, stopped: pass.stopped, failed: pass.failed, mode, flex: $('flex').checked, smart: $('smart').checked && mode !== 're',
       matchCase: $('c').checked, rangeInfo: g.rangeInfo, folders: g.scoped ? ['(files from ' + (g.sc === 'last' ? 'the last run' : 'the failed list') + ')'] : g.folders.map(f => f.path), time: new Date().toLocaleString()};
     auRender();
     $('auBox').open = true;
@@ -2821,7 +2916,7 @@ async function glossaryAudit() {
 function auRender() {
   const a = auLast; if (!a) return;
   const tot = a.T.reduce((x, t) => x + t.n, 0), zero = a.T.filter(t => !t.n).length;
-  $('auInfo').textContent = `${a.docs} of ${a.totalDocs} docs checked, ${a.T.length} pairs, ${tot} matches, ${zero} pair${zero === 1 ? '' : 's'} not found.` + (a.stopped ? ' Stopped early: the counts are partial.' : '') + (a.failed.length ? ` ${a.failed.length} docs could not be read.` : '');
+  $('auInfo').textContent = (a.dnt ? `${a.dnt} matches skipped (Do-not-translate). ` : '') + (a.ctx ? `${a.ctx} matches skipped (context condition). ` : '') + `${a.docs} of ${a.totalDocs} docs checked, ${a.T.length} pairs, ${tot} matches, ${zero} pair${zero === 1 ? '' : 's'} not found.` + (a.stopped ? ' Stopped early: the counts are partial.' : '') + (a.failed.length ? ` ${a.failed.length} docs could not be read.` : '');
   const so = $('auSort').value, L = a.T.slice();
   if (so === 'most') L.sort((x, y) => y.n - x.n || x.k - y.k); else if (so === 'zero') L.sort((x, y) => (x.n ? 1 : 0) - (y.n ? 1 : 0) || x.k - y.k);
   const box = $('auList'); box.textContent = '';
@@ -3039,7 +3134,7 @@ function cxAdd(t) {
 function cxDnt(t) {
   const a = dntGet(); if (!a.some(x => x.toLowerCase() === t.toLowerCase())) a.push(t);
   store.set('dnt', JSON.stringify(a)); cxLoadLists(); cxRender();
-  setStatus('"' + t + '" saved to the Do-not-translate list (hidden from this finder; protection during Replace is not wired yet).');
+  setStatus('"' + t + '" saved to the Do-not-translate list (Replace now skips matches that overlap it).');
 }
 /* S9: one tap on the correct spelling adds `others => correct` to the entries and to the end of the pairs box */
 function icPick(c, x) {
@@ -3053,6 +3148,94 @@ function icPick(c, x) {
   if (i >= 0) L[i] = line; else { while (L.length && !L[L.length - 1].trim()) L.pop(); L.push(line); }
   setPairs(L.join('\n'), 'Added: ' + line + ' (entries and Step 2 pairs).');
   renderEntries(); cxRender();
+}
+
+/* ---------- v5.12: raw folders per novel + raw term finder (S13). Reads only, never writes to Docs. ---------- */
+function rwGet() { try { const o = JSON.parse(store.get('rawmap', '{}')); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch (e) { return {}; } }
+function rwInfoGet() { try { const o = JSON.parse(store.get('rawinfo', '{}')); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch (e) { return {}; } }
+function rangeList(a) {
+  a = [...new Set(a)].sort((x, y) => x - y); const out = [];
+  for (let i = 0; i < a.length;) { let j = i; while (j + 1 < a.length && a[j + 1] === a[j] + 1) j++; out.push(j > i ? a[i] + '-' + a[j] : '' + a[i]); i = j + 1; }
+  return out.join(', ');
+}
+function rwFill() {
+  const sel = $('rwNov'), keep = sel.value, M = rwGet(), set = new Set();
+  selectedFolders().forEach(f => set.add(f.path)); Object.keys(M).forEach(k => set.add(k));
+  sel.textContent = '';
+  [...set].forEach(k => { const o = el('option', k + (M[k] ? ' (linked)' : '')); o.value = k; sel.append(o); });
+  if (!set.size) { const o = el('option', 'Tick a novel in Step 1 first'); o.value = ''; sel.append(o); }
+  if (set.has(keep)) sel.value = keep;
+  const box = $('rwMap'); box.textContent = '';
+  Object.keys(M).forEach(k => { const r = el('div', k + ' -> ' + M[k]); r.className = 'exr'; box.append(r); });
+  $('rwFolder').value = M[sel.value] || '';
+}
+$('rwNov').addEventListener('change', () => { $('rwFolder').value = rwGet()[$('rwNov').value] || ''; });
+$('rwBox').addEventListener('toggle', () => { if ($('rwBox').open) { rwFill(); rwRender(); } });
+function rwSave() {
+  const n = $('rwNov').value, f = fid($('rwFolder').value);
+  if (!n) return setStatus('Choose a novel first (tick it in Step 1).');
+  if (!f) return setStatus('Paste the raw folder link or ID.');
+  const M = rwGet(); M[n] = f;
+  if (!store.set('rawmap', JSON.stringify(M))) return setStatus('Not saved (browser storage is blocked).');
+  rwFill(); setStatus('Raw folder linked for ' + n + '.');
+}
+function rwRemove() {
+  const n = $('rwNov').value, M = rwGet();
+  if (!n || !M[n]) return setStatus('No link to remove for this novel.');
+  delete M[n]; store.set('rawmap', JSON.stringify(M)); rwFill(); setStatus('Link removed (stored raw chapters in entries are kept).');
+}
+async function rawDocsFor(novel) {
+  const id = rwGet()[novel];
+  if (!id) throw new Error('No raw folder is linked for this novel.');
+  return listDocs(id, true);
+}
+function rwRender() {
+  const name = geName(), info = rwInfoGet()[name], box = $('rwList'); box.textContent = '';
+  entriesGet(name).filter(e => e.raw).forEach(e => {
+    const r = el('div'); r.className = 'exr';
+    const l1 = el('div'); const w = el('span', e.raw); w.className = 'wr'; const c = el('span', e.correct || '(delete)'); c.className = 'ok'; l1.append(w, ' => ', c);
+    const l2 = el('span', e.rawCh.length ? 'Raw chapters: ' + rangeList(e.rawCh) : (info ? 'not found in any raw chapter' : 'not scanned yet')); l2.className = 'au';
+    r.append(l1, l2); box.append(r);
+  });
+  if (info) $('rwInfo').textContent = `Last scan ${new Date(info.date).toLocaleString()} (${info.nov}): ${info.docs} of ${info.total} raw docs read` + (info.noNum ? `, ${info.noNum} without chapter number (skipped)` : '') + (info.dup ? `, ${info.dup} duplicate chapter numbers` : '') + (info.onlyRaw ? `. Only in raw: ${info.onlyRaw}` : '') + (info.onlyTr ? `. Only in translation: ${info.onlyTr}` : '') + '.';
+}
+async function rwRun() {
+  if (busy) return;
+  const nov = $('rwNov').value;
+  if (!nov || !rwGet()[nov]) return setStatus('Link a raw folder for this novel first.');
+  const name = geName(), ents = entriesGet(name).filter(e => e.raw);
+  if (!ents.length) return setStatus('No entries with a Raw term in "' + name + '".');
+  busy = true; stopFlag = false;
+  await keepAwake();
+  try {
+    if (!token) await login();
+    setStatus('Finding raw files...');
+    const docs = (await rawDocsFor(nov)).sort((a, b) => (chNo(a.name) === null ? 1e9 : chNo(a.name)) - (chNo(b.name) === null ? 1e9 : chNo(b.name)) || a.name.localeCompare(b.name, undefined, {numeric: true}));
+    if (!docs.length) return setStatus('The raw folder has no Google Docs.');
+    const nums = docs.map(d => chNo(d.name)), rawSet = new Set(nums.filter(n => n !== null));
+    const noNum = nums.filter(n => n === null).length, dup = nums.filter(n => n !== null).length - rawSet.size;
+    let tr = null; const nf = selectedFolders().find(f => f.path === nov);
+    if (nf) { try { tr = new Set((await listDocs(nf.id, $('rec').checked)).map(d => chNo(d.name)).filter(n => n !== null)); } catch (e) { tr = null; } }
+    const found = new Map(ents.map(e => [e.id, new Set()]));
+    const pass = await textPass(docs, (doc, paras) => {
+      const n = chNo(doc.name); if (n === null) return;
+      for (const e of ents) if (!found.get(e.id).has(n) && paras.some(p => p.text.includes(e.raw))) found.get(e.id).add(n);
+    }, 'Raw');
+    if (pass.stopped && !pass.done) { setStatus('Stopped.'); return; }
+    if (pass.stopped) {
+      $('rwInfo').textContent = `Stopped after ${pass.done} of ${docs.length} raw docs. Partial result NOT saved (the stored raw chapters are unchanged).`;
+      $('pg').hidden = true; setStatus(''); return;
+    }
+    const list = entriesGet(name).map(e => found.has(e.id) ? Object.assign({}, e, {rawCh: [...found.get(e.id)].sort((a, b) => a - b)}) : e);
+    if (!glexSet(name, list)) return setStatus('Not saved (browser storage is blocked).');
+    const I = rwInfoGet();
+    I[name] = {nov, date: new Date().toISOString(), docs: pass.done, total: docs.length, noNum, dup,
+      onlyRaw: tr ? rangeList([...rawSet].filter(n => !tr.has(n))) : '', onlyTr: tr ? rangeList([...tr].filter(n => !rawSet.has(n))) : ''};
+    store.set('rawinfo', JSON.stringify(I));
+    rwRender(); renderEntries();
+    $('pg').hidden = true; setStatus(pass.failed.length ? pass.failed.length + ' raw docs could not be read.' : '');
+  } catch (e) { setStatus('Error: ' + e.message); }
+  finally { busy = false; releaseAwake(); }
 }
 </script>
 </body>

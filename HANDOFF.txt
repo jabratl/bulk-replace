@@ -1,10 +1,10 @@
-BULK REPLACE - MASTER HANDOFF  |  current: v5.9 (S1-S10 done)  |  plan: v5.0 -> v5.17
+BULK REPLACE - MASTER HANDOFF  |  current: v5.12 (S1-S13 done)  |  plan: v5.0 -> v5.17
 ==========================================================================
 This file is self-contained. HANDOFF.md = frozen legacy feature reference for v4.x (read only if a step says so).
 Mark steps [x] here when done and add a CHANGELOG line (see section 6).
 
 1. PROJECT SUMMARY
-- Single-file web app (index.html, ~3060 lines, 166 KB, vanilla JS, no build, no deps except Google GSI script).
+- Single-file web app (index.html, ~3230 lines, 181 KB, vanilla JS, no build, no deps except Google GSI script).
 - Hosted on GitHub Pages. User works from Android phone mostly. UI text is English.
 - Purpose: bulk-replace wrongly translated terms across 100+ Google Docs chapters per novel in Drive ("My Work" folder), via Drive API (drive.readonly) + Docs API (documents).
 - Docs contain ONLY translated text (English or similar). Languages in scope: JP/KR/CN/RU raw + English translation. NO Bengali-specific work anywhere in this plan (existing Bengali-safe code from v4.x stays untouched, nothing new added). Raw (JP/KR/CN/RU) can only be used if the user keeps raw chapters as Docs (S13+).
@@ -79,11 +79,28 @@ Mark steps [x] here when done and add a CHANGELOG line (see section 6).
 - pairSwap skips lines that carry @{...}. quickAdd rewriting an existing line drops its @{...}. auPreview keeps the suffix (t.meta).
 - Not done: rules.mode/keep not in CSV/JSON export (same as swap/honor); entry list rows do not show the range; capitalization/DNT/flags = S11; conditions = S12.
 
+3j. ADDED IN v5.10 (S11) - risk flags, Do-not-translate, capitalization rule
+- Risk flag: riskyFind(find) = any variant is letters-only Latin/Cyrillic and (<= 3 chars or in the ignored-words list cxStopSet()). pairForced(p) = Step 3 mode is Contains AND no per-pair mode AND risky -> buildRe uses whole word (p.fw overrides, audit variants pass fw). CJK/Hangul short terms are never flagged. Override per pair: `@{"mode":"lit"}`. Shown in pairTag ("whole word (auto: short or common)"), in pairWarnings (Check pairs) and replaceAll uses the match-by-match path when any pair is forced.
+- DNT: store 'dnt' (edited in the cxBox ignore panel). dntRe()/dntRanges(text,re): case-sensitive plain terms, longest first. scan() and glossaryAudit() skip any match overlapping a DNT occurrence in the same paragraph; counts in r.dnt / auLast.dnt, r.dntOn; shown in the Preview summary, report line "Do-not-translate: N matches skipped" and audit info. replaceAll uses the match-by-match path whenever the DNT list is not empty. pairWarnings warns when a pair's wrong form is itself on the DNT list.
+- Capitalization rule: entry rules.cap ('title'|'upper'|'lower'), editor #geCap, applied to the correct term in entriesToPairs (Title Case keeps of/the/and/a/an/in/on/to/for/at/by/or lower except first word). Not in CSV/JSON export, not restored by pairsToEntries.
+- Not done: DNT is not language-aware or case-insensitive; risk list is the ignored-words list plus length; no per-entry DNT flag.
+
+3k. ADDED IN v5.11 (S12) - context conditions
+- Pair suffix keys (flat JSON, no nested braces): "ctx":"dlg"|"near"|"far", "cw":"word" (1-60 chars, no { }), "cn":1-500 (default 50). parseMeta validates; near/far without a word = ignored. Entry rules.ctx/cw/cn -> entryMeta; pairsToEntries reads them back. Editor #geCtx #geCw #geCn.
+- ctxOk(o, text, a, b, spans) runs in scan() and glossaryAudit() right after the DNT check, on the original paragraph text: dlg = match fully inside a quote span (quoteSpans: " \u201C\u201D \u00AB\u00BB \u300C\u300D \u300E\u300F \u2018\u2019; an unclosed quote runs to the paragraph end; \u2019 between letters is an apostrophe); near/far = case-insensitive word within cn chars before/after the match (the match itself excluded). Skipped matches counted in r.ctx / auLast.ctx (Preview summary, report line, audit info). pairTag shows "only in dialogue" / "near \"w\" (n)".
+- Not done: quotes do not carry over paragraph breaks (a dialogue that continues in the next paragraph without an opening quote counts as outside); not in CSV/JSON export.
+
+3l. ADDED IN v5.12 (S13) - raw folders + raw term finder
+- Entries card > <details class="box" id="rwBox"> (before #geIO): #rwNov (ticked novels + already linked ones; value = novel folder path), #rwFolder (link or ID, fid()), rwSave/rwRemove, #rwMap (links), #rwRun, #rwInfo, #rwList. Stores: 'rawmap' = {novelPath: rawFolderId}, 'rawinfo' = {setName: {nov, date, docs, total, noNum, dup, onlyRaw, onlyTr}} (range-list strings). Both in backup (rawmap merged, rawinfo merged by set).
+- Functions (end of script): rwGet, rwInfoGet, rangeList(arr) -> "1-5, 9, 14-20", rwFill, rwSave, rwRemove, rawDocsFor(novel) (listDocs recursive), rwRender, rwRun. rwRun: textPass over raw docs, chNo(name) per doc (docs without a number are skipped and reported), for every entry of the current set with a Raw term: raw.includes(paragraph) -> entry.rawCh = sorted chapter numbers (written with glexSet only when the scan finished; Stop = partial result NOT saved). Mapping report compares raw chapter numbers with the translated docs of the ticked novel folder (Only in raw / Only in translation) and counts duplicates.
+- Editor: #geRawCh hint shows the chapters; editing the Raw term clears entry.rawCh. S14 uses entry.rawCh + rawinfo date (cache age).
+- Not done: plain case-sensitive text search (no smart matching on raw); rawCh not in CSV/JSON export; one novel per scan; the raw link is per novel path (renaming the folder breaks the key).
+
 3. KEY DATA SHAPES (v4.8, keep working)
 - Pairs text in textarea #pairs: lines `wrong => correct`; `#` = comment; variants on left: `a | b => c` (space-pipe-space, longest wins); no `=>` allowed only in Find-only (#fo).
 - parsePairs() -> {pairs:[{find,repl}], bad:[]}. Dedup by find.
 - Glossary: localStorage 'gloss' = JSON {name: pairsText}. Auto-load by novel-name match.
-- Other keys seen: dnt (JSON array), cxstop (text), theme, hist (runs), lastRun, sel/selp (novel ticks), cnt (doc counts), profiles, opts, draft, tsize. Check with grep "store.get('" before adding a key.
+- Other keys seen: rawmap, rawinfo, dnt (JSON array), cxstop (text), theme, hist (runs), lastRun, sel/selp (novel ticks), cnt (doc counts), profiles, opts, draft, tsize. Check with grep "store.get('" before adding a key.
 - Match object (buildMatch): file, link, pair index, found, replacement, ctx before/after, ticked.
 - Docs read gives paragraphs; matching runs per paragraph text; offsets mapped to doc indexes via segs (toDoc). ANY new matching feature MUST match on the ORIGINAL paragraph text (expand the pattern, do not normalize the text) so offsets stay valid.
 - chNo(name) = chapter number from file name; used for range filter, reuse for raw<->translated mapping.
@@ -167,17 +184,17 @@ PHASE D - Per-entry rules (touches the matching pipeline: do in order)
     Goal: per-pair options plumbing + chapter range per entry + per-entry mode/keepcase.
     Do: pairs from entries carry opts {from,to,mode,keepcase}; pairs text syntax stays: add optional trailing `@{json}` metadata ONLY in generated lines or keep opts in a side array keyed by find; parsePairs returns opts; scan/applySelected/replaceAll honor: skip pair for docs whose chNo outside from..to; per-pair mode/keepcase override; plain pairs still use replaceAllText only when no pair has opts.
     Checks: pair 1-200 vs 201+ on mocked chapters; undo prep not broken; history/report show range.
-[ ] S11 (v5.10) MODIFY M ~35%  (dep S10)
+[x] S11 (v5.10) MODIFY M ~35%  DONE  (dep S10)
     Goal: risk flags, do-not-translate list, capitalization rules.
     Do: auto flag short (<=3 chars) / common words -> forced whole-word with warning in pairWarnings; DNT list (terms never replaced; protected during replace by skipping overlapping matches); capitalization rule per entry (Title Case skill names).
     Checks: DNT overlap skipped and counted in summary; flags visible in Check pairs.
-[ ] S12 (v5.11) MODIFY M ~35%  (dep S10)
+[x] S12 (v5.11) MODIFY M ~35%  DONE  (dep S10)
     Goal: context conditions.
     Do: per-entry condition: only in dialogue (paragraph contains quote chars " “ ” ‘ ’ « » 「 」 and match inside quotes) / only near word X within N chars / not near word X; evaluated on paragraph text before building the match.
     Checks: node cases; preview counts change as expected; offsets intact.
 
 PHASE E - Raw chapters as a guide (needs raw Docs in Drive)
-[ ] S13 (v5.12) BUILD M ~40%  (dep S1,S7)
+[x] S13 (v5.12) BUILD M ~40%  DONE  (dep S1,S7)
     Goal: raw folders per novel + raw term finder.
     Do: Settings: map novel -> raw folder ID (profile-like, stored 'rawmap', in backup); fn rawDocsFor(novel) lists raw docs and maps by chNo; "Find raw term" scans raw docs (textPass) for entry.raw and stores entry.rawCh=[chapter numbers] (cache with date); show as range list "1-5, 9, 14-20".
     Checks: chapter mapping with mismatched numbering reported; Stop works; cache survives reload.
@@ -216,9 +233,13 @@ PHASE G - Reports and maintenance
 - Playwright with mocked Google APIs was used in v4.x (suites not in this zip). For new steps, at minimum: node --check on extracted <script>, node unit tests for pure functions (smartPattern, entriesToPairs, transliterators), one mocked-DOM smoke test if Playwright is available.
 
 10. NEXT-CHAT KICKOFF LINE (copy exactly, change the step id each time)
-"Read HANDOFF.txt (uploaded). Do ONLY step S11 (next unchecked step). Patch index.html only, output changed files only, one step per chat, stop at 85% session (hard stop 90%), tick [x] and add CHANGELOG."
+"Read HANDOFF.txt (uploaded). Do ONLY step S14 (next unchecked step). Patch index.html only, output changed files only, one step per chat, stop at 85% session (hard stop 90%), tick [x] and add CHANGELOG."
 
 11. CHANGELOG
+v5.12 (S13) 2026-11-06: raw folder link per novel (store rawmap, backup), "Find raw terms" scan stores entry.rawCh with chapter range list, mapping report vs translated chapters, cache survives reload, Stop keeps stored data. Tests: node --check, no duplicate ids, Playwright mocked Drive/Docs 360+1280 light+dark (JP/CN raw, ranges 1, 3-4, mismatch 'Only in raw: 7', file without number, reload, Stop, 0 writes, 0 JS errors). NOT tested: real Drive.
+v5.11 (S12) 2026-11-06: per-pair/entry conditions: only in dialogue (quotes), only near / not near a word within N chars; skipped counts in Preview/report/audit. Tests: node unit (quote spans, apostrophes, near/far windows), Playwright (Preview == audit, entry round trip, validation).
+S12+S13 built in one chat at the user's request.
+v5.10 (S11) 2026-11-06: auto whole-word for short/common Latin-Cyrillic terms (override @{"mode":"lit"}), flags in Check pairs/tags, Do-not-translate protection in Preview/Replace/audit with skipped count, per-entry capitalization rule (Title/UPPER/lower). Tests: node --check, no duplicate ids, Playwright mocked Docs 360+1280 light+dark (DNT overlap skipped 7 of 11, audit == Preview, override, cap rules, 0 writes, 0 JS errors). NOT tested: real Docs, applySelected with DNT.
 v5.9 (S10) 2026-11-06: per-pair options via ` @{json}` suffix (chapter range, whole word/contains, keep capitalization), entry editor fields, pairs generated with suffix, range/mode/keep honoured by Preview, Replace (match-by-match), audit; tag shown in reports. Tests: node --check, no duplicate ids, Playwright mocked Docs 360+1280 light+dark (range 1-200 vs 250, per-pair whole word, keepcase on/off, audit == Preview, entry round trip, bad range message, 0 writes, 0 JS errors). NOT tested: real Docs, applySelected with mocked batchUpdate, undo prep with opts.
 v5.8 (S9) 2026-11-06: spelling variant groups (smart key + edit distance), one tap on the correct spelling adds the pair to entries and to #pairs. Tests: node/Playwright (Xiao Yan / Xiaoyan / Siao Yan group, resolved group disappears, wrong-form pick refused).
 v5.7 (S8) 2026-11-06: candidate extractor in Step 3 (capitalized 1-3 word terms not in glossary, counts, sample line, add to entries / Do-not-translate, editable ignore list, 20k term cap, Stop gives partial result). Tests: Playwright mocked Docs (counts, mid-sentence rule, stopwords, Stop partial 2/3, 0 writes).
