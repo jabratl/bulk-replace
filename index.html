@@ -116,6 +116,9 @@ body.fo #bAll,body.fo #bApply{opacity:.45}
 button.chip.on{background:var(--ac);color:var(--acf)}
 details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
 #vfoot{margin:10px 0 14px}
+.hi{border:1px solid var(--bd);border-radius:12px;background:var(--sf2);padding:10px 12px;display:grid;gap:6px;margin-bottom:8px}
+.hi .hm{color:var(--mut);font-size:13px;word-break:break-word}
+#hlist{max-height:420px;overflow:auto;overscroll-behavior:contain}
 @media(min-width:980px){
 .app{padding-bottom:40px}
 .cols{grid-template-columns:minmax(0,5fr) minmax(0,6fr);align-items:start}
@@ -132,7 +135,8 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
 <body>
 <div class="app">
 <header class="top">
-  <div class="t"><h1>Bulk Replace<span class="ver">v4.3</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
+  <div class="t"><h1>Bulk Replace<span class="ver">v4.4</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
+  <button id="hbtn" onclick="openHistory()" title="History of replace runs">History</button>
   <button class="icon" id="thm" onclick="cycleTheme()" aria-label="Change theme" title="Change theme">Auto</button>
 </header>
 
@@ -272,6 +276,19 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
   </div>
 </details>
 
+<details class="card" id="hist">
+  <summary id="hSum">History of runs</summary>
+  <div class="bd">
+    <p class="hint">Every finished replace is saved on this device with the chapters and the matches that were changed. Open a run to see it again, save its report, prepare an undo, or delete it. History is not part of the backup file.</p>
+    <label class="sw"><input type="checkbox" id="histOn" checked>Save history of replace runs</label>
+    <label class="fl">How many runs to keep
+      <select id="hkeep"><option value="10">Last 10 runs</option><option value="20">Last 20 runs</option><option value="50">Last 50 runs</option></select>
+    </label>
+    <div id="hlist"></div>
+    <button class="stop" onclick="clearHist()">Clear all history</button>
+  </div>
+</details>
+
 </div>
 
 <div class="right">
@@ -334,6 +351,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
       <button class="sm" onclick="vExpand(true)">Expand all</button>
       <button class="sm" onclick="vExpand(false)">Collapse all</button>
       <button class="sm" onclick="vReset()">Reset filters</button>
+      <button class="sm" onclick="vClear()">Clear results</button>
     </div>
     <div class="row" id="tickRow">
       <button class="sm" onclick="vTick(true)">Tick all shown</button>
@@ -778,6 +796,7 @@ async function scan() {
 function el(tag, text) { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; return e; }
 
 function ctxParts(m, n) {
+  if (m.hist) return {pre: m.pre, term: m.term, post: m.post};
   n = n || V.ctx || 70;
   const pre = (m.a > n ? '…' : '') + m.text.slice(Math.max(0, m.a - n), m.a);
   const term = m.text.slice(m.a, m.b);
@@ -1182,6 +1201,7 @@ async function applySelected(auto) {
     showResults(r2, 'done');
     $('rv').hidden = true;
     lastScan = null;
+    saveHistory(r2, auto ? 'Replace (all, match by match)' : 'Replace (ticked matches)', failed);
     finishUI(buildReport(r2, 'Replace (ticked matches)', rows, failed.length ? 'Failed: ' + failed.join('; ') : ''));
   } catch (e) { setStatus('Error: ' + e.message); }
   finally { busy = false; releaseAwake(); }
@@ -1256,6 +1276,7 @@ async function replaceAll() {
       r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl} : ${rows[k]}`)
     );
     showResults(r, 'done');
+    saveHistory(r, 'Replace (all)', []);
     finishUI(buildReport(r, 'Replace (all)', rows, stopped ? 'Stopped partway.' : ''));
   } catch (e) { setStatus('Error: ' + e.message); }
   finally { busy = false; releaseAwake(); }
@@ -1484,8 +1505,8 @@ function updateScopeHint() {
   const lr = getLastRun();
   $('scopeHint').textContent = lr ? `Last run (${new Date(lr.t).toLocaleString()}): ${lr.ids.length} files changed, ${lr.failed.length} failed or not reached.` : 'No run recorded yet on this device.';
 }
-function undoPrepare() {
-  const lr = getLastRun();
+function undoPrepare() { undoFrom(getLastRun()); }
+function undoFrom(lr) {
   if (!lr || !lr.ids.length) return setStatus('No finished replace is recorded on this device yet.');
   if (lr.mode === 're') return setStatus('Undo is not available for regular expression runs. Use Docs Version history.');
   const lines = []; let skipped = 0;
@@ -1498,9 +1519,128 @@ function undoPrepare() {
   if ($('pairs').value.trim() && !confirm('Replace the current pairs with the reverse pairs of your last run?\n\n(Tip: save the current pairs as a glossary first.)')) return;
   setPairs(lines.join('\n'), `Undo prepared: ${lines.length} reverse pairs` + (skipped ? ` (${skipped} could not be reversed)` : '') + `, limited to the ${lr.ids.length} files changed. Run Preview and untick anything that should stay.`);
   $('mode').value = lr.mode; $('flex').checked = !!lr.flex; $('c').checked = !!lr.matchCase; $('fo').checked = false;
+  store.set('lastRun', JSON.stringify(lr)); updateScopeHint();
   $('scope').value = 'last';
   $('mode').dispatchEvent(new Event('change')); $('fo').dispatchEvent(new Event('change'));
 }
+/* ---------- v4.4: history of runs ---------- */
+const HMAX = 3000;
+function getHist() { try { const h = JSON.parse(store.get('hist', '[]')); return Array.isArray(h) ? h : []; } catch (e) { return []; } }
+function saveHistory(r, label, failed) {
+  if (!$('histOn').checked || !r.results.length) return;
+  const files = []; let cnt = 0, total = 0, trunc = false;
+  for (const f of r.results) {
+    total += f.matches.length;
+    const m = [];
+    for (const x of f.matches) {
+      if (cnt >= HMAX) { trunc = true; break; }
+      const c = ctxParts(x, 70);
+      m.push([x.k, c.pre, c.term, c.post, x.rep === null ? '' : x.rep]); cnt++;
+    }
+    files.push({id: f.id, name: f.name, m});
+  }
+  const run = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t: Date.now(), label,
+    pairs: r.pairs.map(p => ({find: p.find, repl: p.repl})), mode: r.mode, flex: !!r.flex, matchCase: !!r.matchCase,
+    folderNames: r.folderNames, rec: r.rec, nf: r.nf || '', rangeInfo: r.rangeInfo || '', docs: r.docs,
+    total, nfiles: r.results.length, files, trunc, failed: (failed || []).slice(0, 50)
+  };
+  let h = getHist(); h.unshift(run);
+  h = h.slice(0, parseInt($('hkeep').value, 10) || 20);
+  while (!store.set('hist', JSON.stringify(h)) && h.length > 1) h.pop();
+  renderHistory();
+}
+function runToR(run) {
+  const totals = run.pairs.map(() => 0), fileCounts = run.pairs.map(() => 0);
+  const results = run.files.map(f => {
+    const seen = new Set();
+    const matches = f.m.map(a => {
+      totals[a[0]]++; seen.add(a[0]);
+      return {k: a[0], hist: true, pre: a[1], term: a[2], post: a[3], rep: a[4], text: a[1] + a[2] + a[3], a: 0, b: 0, ok: false, sel: false};
+    });
+    seen.forEach(k => fileCounts[k]++);
+    return {id: f.id, name: f.name, n: matches.length, counts: [], matches};
+  });
+  return {docs: run.docs || results.length, results, totalMatches: run.total, pairs: run.pairs, totals, fileCounts,
+    matchCase: run.matchCase, mode: run.mode, flex: run.flex, fo: false, folderNames: run.folderNames || [], rec: run.rec, nf: run.nf, rangeInfo: run.rangeInfo};
+}
+function viewRun(id) {
+  if (busy) return setStatus('Wait for the current job to finish.');
+  const run = getHist().find(x => x.id === id);
+  if (!run) return setStatus('That run is no longer in the history.');
+  resetOut(); lastScan = null;
+  const r = runToR(run);
+  const note = run.trunc ? `Only the first ${HMAX} matches of this run were saved.` : '';
+  showSummary(`History: ${run.label}, ${new Date(run.t).toLocaleString()}\n${run.total} matches in ${run.nfiles} files.` + (note ? ' ' + note : '') +
+    (run.failed.length ? `\n${run.failed.length} files failed: ` + run.failed.join('; ') : ''),
+    r.pairs.map((p, k) => `${k + 1}) ${p.find} => ${p.repl} : ${r.totals[k]} matches in ${r.fileCounts[k]} files`));
+  showResults(r, 'done');
+  finishUI(buildReport(r, 'History: ' + run.label + ' (' + new Date(run.t).toLocaleString() + ')', r.pairs.map((p, k) => `${r.totals[k]} matches in ${r.fileCounts[k]} files`), note));
+  vTop();
+}
+function histReport(id) {
+  const run = getHist().find(x => x.id === id);
+  if (!run) return;
+  const r = runToR(run);
+  downloadFile('history-report-' + stamp() + '.txt', buildReport(r, 'History: ' + run.label + ' (' + new Date(run.t).toLocaleString() + ')', r.pairs.map((p, k) => `${r.totals[k]} matches in ${r.fileCounts[k]} files`), run.trunc ? `Only the first ${HMAX} matches were saved.` : ''), 'text/plain');
+  setStatus('Report saved.');
+}
+function histUndo(id) {
+  const run = getHist().find(x => x.id === id);
+  if (!run) return;
+  undoFrom({t: run.t, ids: run.files.map(f => ({id: f.id, name: f.name})), failed: [], pairs: run.pairs, mode: run.mode, flex: run.flex, matchCase: run.matchCase});
+}
+function delRun(id) {
+  if (!confirm('Delete this run from the history?')) return;
+  store.set('hist', JSON.stringify(getHist().filter(x => x.id !== id)));
+  renderHistory();
+}
+function clearHist() {
+  const n = getHist().length;
+  if (!n) return setStatus('The history is already empty.');
+  if (!confirm(`Delete all ${n} saved runs?\n\nThis also forgets the last-run information used by "Files to include" and "Prepare undo". It cannot be undone.`)) return;
+  store.set('hist', '[]'); store.set('lastRun', 'null');
+  renderHistory(); updateScopeHint();
+  setStatus('History cleared.');
+}
+function renderHistory() {
+  const h = getHist(), box = $('hlist');
+  box.textContent = '';
+  $('hbtn').textContent = 'History' + (h.length ? ` (${h.length})` : '');
+  $('hSum').textContent = 'History of runs' + (h.length ? ` (${h.length})` : '');
+  if (!h.length) { const p = el('p', 'No runs saved yet.'); p.className = 'hint'; box.append(p); return; }
+  for (const run of h) {
+    const it = document.createElement('div');
+    it.className = 'hi';
+    it.append(el('b', `${new Date(run.t).toLocaleString()} · ${run.label}`));
+    const pr = run.pairs.slice(0, 2).map(p => `${p.find} => ${p.repl || '(delete)'}`).join('; ') + (run.pairs.length > 2 ? ` (+${run.pairs.length - 2} more)` : '');
+    const m = el('div', `${run.total} matches in ${run.nfiles} files. ${pr}` + (run.failed.length ? ` ${run.failed.length} files failed.` : ''));
+    m.className = 'hm'; it.append(m);
+    const row = document.createElement('div');
+    row.className = 'row';
+    [['View', () => viewRun(run.id)], ['Report .txt', () => histReport(run.id)], ['Prepare undo', () => histUndo(run.id)], ['Delete', () => delRun(run.id)]].forEach(([t, fn]) => {
+      const b = el('button', t); b.className = 'sm'; b.onclick = fn; row.append(b);
+    });
+    it.append(row); box.append(it);
+  }
+}
+function openHistory() { $('hist').open = true; renderHistory(); $('hist').scrollIntoView({block: 'start'}); }
+function vClear() { resetOut(); setStatus('Results cleared.'); }
+$('histOn').checked = store.get('histOn', '1') !== '0';
+{
+  const hk = store.get('hkeep', '20');
+  $('hkeep').value = ['10', '20', '50'].includes(hk) ? hk : '20';
+  $('histOn').addEventListener('change', () => store.set('histOn', $('histOn').checked ? '1' : '0'));
+  $('hkeep').addEventListener('change', () => {
+    const n = parseInt($('hkeep').value, 10), h = getHist();
+    if (h.length > n) {
+      if (!confirm(`Keep only the last ${n} runs? ${h.length - n} older runs will be deleted.`)) { $('hkeep').value = store.get('hkeep', '20'); return; }
+      store.set('hist', JSON.stringify(h.slice(0, n)));
+    }
+    store.set('hkeep', String(n)); renderHistory();
+  });
+}
+renderHistory();
 updateScopeHint();
 updateFolderSel();
 {
