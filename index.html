@@ -155,7 +155,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
 <body>
 <div class="app">
 <header class="top">
-  <div class="t"><h1>Bulk Replace<span class="ver">v5.1</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
+  <div class="t"><h1>Bulk Replace<span class="ver">v5.2</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
   <button id="hbtn" onclick="openHistory()" title="History of replace runs">History</button>
   <button class="icon" id="thm" onclick="cycleTheme()" aria-label="Change theme" title="Change theme">Auto</button>
 </header>
@@ -332,6 +332,34 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
     <div class="gerev" id="geRevOut" hidden></div>
     <div class="exl" id="geList"></div>
     <p class="hint" id="geInfo"></p>
+    <details class="box" id="geIO">
+      <summary>Import and export entries</summary>
+      <div class="bd">
+        <p class="hint">CSV / TSV / JSON. Columns: Raw, Wrong, Correct, Language, Type, Note, From, To. Several wrong forms in one cell: separate with " | ". Without a header row, 3 columns = Raw, Wrong, Correct and 2 columns = Wrong, Correct. Spreadsheet cells pasted below work too.</p>
+        <div class="row">
+          <button class="sm" onclick="geExport('csv')">Export CSV</button>
+          <button class="sm" onclick="geExport('tsv')">Export TSV</button>
+          <button class="sm" onclick="geExport('json')">Export JSON</button>
+        </div>
+        <p class="hint">If an entry already exists (same raw + correct):</p>
+        <select id="geConf">
+          <option value="merge">Merge wrong forms</option>
+          <option value="skip">Skip existing</option>
+          <option value="over">Overwrite existing</option>
+          <option value="keep">Keep both</option>
+        </select>
+        <div class="row">
+          <button onclick="$('geFile').click()">Import file</button>
+          <button id="geUndoB" onclick="geUndoImp()" disabled>Undo last import</button>
+        </div>
+        <input type="file" id="geFile" accept=".csv,.tsv,.txt,.json,text/plain,text/csv,application/json" hidden onchange="geImportFile(this)">
+        <textarea id="geImpTxt" placeholder="Paste rows copied from a spreadsheet here" autocomplete="off"></textarea>
+        <div class="row">
+          <button onclick="geImportText()">Import pasted rows</button>
+          <button onclick="geConvertAll()">Convert all saved glossaries</button>
+        </div>
+      </div>
+    </details>
   </div>
 </details>
 
@@ -1998,7 +2026,13 @@ function autoGloss() {
   const names = [...new Set([...selMap.values()].map(p => String(p).split(' / ')[0]))];
   if (names.length !== 1) return;
   const g = gloss(), key = Object.keys(g).find(k => k.toLowerCase() === names[0].toLowerCase());
-  if (!key) return;
+  if (!key) {
+    const G = glexAll(), ek = Object.keys(G).find(k => k.toLowerCase() === names[0].toLowerCase() && Array.isArray(G[k]) && G[k].length);
+    const ep = ek ? entriesToPairs(G[ek]) : null;
+    if (!ep || !ep.count || $('pairs').value === ep.text) return;
+    if ($('pairs').value.trim() && !confirm(`Replace the current pairs with the entries of "${ek}"?`)) return;
+    $('gname').value = ek; setPairs(ep.text, `Entries of "${ek}" loaded as pairs.`); renderEntries(); return;
+  }
   const cur = $('pairs').value;
   if (cur === g[key]) return;
   if (cur.trim() && !confirm(`Replace the current pairs with glossary "${key}"?`)) return;
@@ -2280,6 +2314,131 @@ function geClear() {
   if (!n) return setStatus('There are no entries to clear.');
   if (!confirm(`Delete all ${n} entries of "${name}"? The text glossary and the pairs stay as they are.`)) return;
   glexSet(name, []); renderEntries(); setStatus('Entries cleared.');
+}
+
+/* ---------- v5.2: import / export of entries ---------- */
+let geUndo = null;
+const GE_HDR = {raw: 'raw', original: 'raw', source: 'raw', 'raw term': 'raw', wrong: 'wrong', 'wrong forms': 'wrong', 'wrong variants': 'wrong', variants: 'wrong', variant: 'wrong', mistranslation: 'wrong',
+  correct: 'correct', translation: 'correct', target: 'correct', replacement: 'correct', language: 'lang', lang: 'lang', type: 'type', note: 'note', notes: 'note', comment: 'note',
+  from: 'from', 'from chapter': 'from', 'chapter from': 'from', to: 'to', 'to chapter': 'to', 'chapter to': 'to'};
+const GE_LANGMAP = {ja: 'ja', jp: 'ja', japanese: 'ja', ko: 'ko', kr: 'ko', korean: 'ko', zh: 'zh', cn: 'zh', chinese: 'zh', ru: 'ru', russian: 'ru', en: 'en', english: 'en'};
+function csvParse(t, d) {
+  const rows = []; let row = [], cur = '', q = false;
+  t = String(t).replace(/^\uFEFF/, '');
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (q) { if (c === '"') { if (t[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
+    else if (c === '"' && cur === '') q = true;
+    else if (c === d) { row.push(cur); cur = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && t[i + 1] === '\n') i++; row.push(cur); cur = ''; if (row.some(x => x.trim() !== '')) rows.push(row); row = []; }
+    else cur += c;
+  }
+  row.push(cur); if (row.some(x => x.trim() !== '')) rows.push(row);
+  return rows;
+}
+function geDelim(t) {
+  const l = String(t).replace(/^\uFEFF/, '').split(/\r?\n/).find(x => x.trim()) || '';
+  const tab = (l.match(/\t/g) || []).length, sc = (l.match(/;/g) || []).length, cm = (l.match(/,/g) || []).length;
+  return tab ? '\t' : sc > cm ? ';' : ',';
+}
+function geWrongList(v) {
+  const a = Array.isArray(v) ? v : String(v == null ? '' : v).split(/\s*\|\s*|\r?\n/);
+  return a.map(x => String(x).trim()).filter(Boolean);
+}
+function geRowsToEntries(rows) {
+  if (!rows.length) return {list: [], ignored: 0};
+  const h = rows[0].map(x => GE_HDR[x.trim().toLowerCase()] || null);
+  let cols, data;
+  if (h.some(Boolean)) { cols = h; data = rows.slice(1); }
+  else { cols = rows[0].length >= 3 ? ['raw', 'wrong', 'correct', 'lang', 'type', 'note', 'from', 'to'] : ['wrong', 'correct']; data = rows; }
+  const list = []; let ignored = 0;
+  for (const r of data) {
+    const o = {};
+    cols.forEach((c, i) => { if (c && r[i] !== undefined && o[c] === undefined) o[c] = r[i]; });
+    const wrong = geWrongList(o.wrong), raw = String(o.raw || '').trim();
+    if (!wrong.length && !raw) { ignored++; continue; }
+    const lang = GE_LANGMAP[String(o.lang || '').trim().toLowerCase()] || 'other';
+    const type = String(o.type || '').trim().toLowerCase();
+    const f = parseInt(o.from, 10), t = parseInt(o.to, 10);
+    list.push(entryNew({raw, wrong, correct: o.correct, lang, type, note: String(o.note || '').trim(), from: Number.isFinite(f) ? f : null, to: Number.isFinite(t) ? t : null}));
+  }
+  return {list, ignored};
+}
+function geParseJson(t) {
+  let j;
+  try { j = JSON.parse(String(t).replace(/^\uFEFF/, '')); } catch (e) { throw new Error('the file is not valid JSON.'); }
+  let arr;
+  if (Array.isArray(j)) arr = j;
+  else if (j && Array.isArray(j.entries)) arr = j.entries;
+  else throw new Error('no entries found in this JSON.');
+  const list = []; let ignored = 0;
+  for (const e of arr) {
+    if (!e || typeof e !== 'object') { ignored++; continue; }
+    const wrong = geWrongList(e.wrong);
+    if (!wrong.length && !String(e.raw || '').trim()) { ignored++; continue; }
+    list.push(entryNew(Object.assign({}, e, {wrong, correct: e.correct == null ? '' : String(e.correct)})));
+  }
+  return {list, ignored};
+}
+function geEntryKey(e) { return e.raw.toLowerCase() + '\u0001' + e.correct.toLowerCase(); }
+function geApply(name, add, mode) {
+  geUndo = {name, list: entriesGet(name)};
+  let base = entriesGet(name), added = 0, merged = 0, skipped = 0, over = 0;
+  if (mode === 'merge') { const r = entriesMerge(base, add); base = r.list; added = r.added; merged = r.merged; }
+  else {
+    const idx = new Map(base.map((e, i) => [geEntryKey(e), i]));
+    for (const e of add) {
+      const k = geEntryKey(e);
+      if (mode === 'keep' || !idx.has(k)) { idx.set(k, base.length); base.push(e); added++; }
+      else if (mode === 'skip') skipped++;
+      else { Object.assign(base[idx.get(k)], {wrong: e.wrong, lang: e.lang, type: e.type, note: e.note, from: e.from, to: e.to}); over++; }
+    }
+  }
+  if (!glexSet(name, base)) { geUndo = null; throw new Error('not saved (browser storage is blocked).'); }
+  $('geUndoB').disabled = false;
+  renderEntries();
+  return {added, merged, skipped, over};
+}
+function geImportText2(text, label) {
+  try {
+    if (!String(text).trim()) throw new Error('nothing to import.');
+    const res = /^\s*[\[{]/.test(String(text).replace(/^\uFEFF/, '')) ? geParseJson(text) : geRowsToEntries(csvParse(text, geDelim(text)));
+    if (!res.list.length) throw new Error('no usable rows found (each row needs a wrong form or a raw term).');
+    const name = geName(), r = geApply(name, res.list, $('geConf').value);
+    setStatus(`Imported ${label} into "${name}": ${r.added} added, ${r.merged} merged, ${r.over} overwritten, ${r.skipped} skipped` + (res.ignored ? `, ${res.ignored} rows ignored` : '') + '.');
+  } catch (e) { setStatus('Import failed: ' + e.message); }
+}
+async function geImportFile(inp) {
+  const f = inp.files && inp.files[0]; inp.value = '';
+  if (!f) return;
+  if (f.size > 2e6) return setStatus('Import failed: the file is larger than 2 MB.');
+  geImportText2(await f.text(), f.name);
+}
+function geImportText() { geImportText2($('geImpTxt').value, 'pasted rows'); if (!/^Import failed/.test($('log').textContent)) $('geImpTxt').value = ''; }
+function geUndoImp() {
+  if (!geUndo) return;
+  glexSet(geUndo.name, geUndo.list);
+  const n = geUndo.name; geUndo = null; $('geUndoB').disabled = true;
+  renderEntries(); setStatus(`Last import undone for "${n}".`);
+}
+function geExport(fmt) {
+  const name = geName(), arr = entriesGet(name);
+  if (!arr.length) return setStatus('There are no entries to export.');
+  const base = 'entries-' + name.replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 40) + '-' + stamp();
+  if (fmt === 'json') return downloadFile(base + '.json', JSON.stringify({app: 'bulk-replace-entries', version: 1, set: name, date: new Date().toISOString(), entries: arr}, null, 2), 'application/json');
+  const d = fmt === 'tsv' ? '\t' : ',';
+  const cell = x => { x = String(x == null ? '' : x); return d === '\t' ? x.replace(/[\t\r\n]+/g, ' ') : csvCell(x); };
+  const rows = [['Raw', 'Wrong', 'Correct', 'Language', 'Type', 'Note', 'From', 'To']].concat(arr.map(e => [e.raw, e.wrong.join(' | '), e.correct, e.lang, e.type, e.note, e.from == null ? '' : e.from, e.to == null ? '' : e.to]));
+  downloadFile(base + '.' + fmt, '\uFEFF' + rows.map(r => r.map(cell).join(d)).join('\r\n') + '\r\n', fmt === 'tsv' ? 'text/tab-separated-values' : 'text/csv');
+  setStatus(`Exported ${arr.length} entries (${fmt.toUpperCase()}).`);
+}
+function geConvertAll() {
+  const g = gloss(), names = Object.keys(g).filter(k => pairsToEntries(g[k]).length);
+  if (!names.length) return setStatus('No saved glossary has pairs to convert.');
+  if (!confirm(`Convert ${names.length} saved glossaries to entries? Existing entries are kept and merged.`)) return;
+  let a = 0, m = 0;
+  for (const k of names) { const r = entriesMerge(entriesGet(k), pairsToEntries(g[k])); glexSet(k, r.list); a += r.added; m += r.merged; }
+  renderEntries(); setStatus(`Converted ${names.length} glossaries: ${a} entries added, ${m} extended.`);
 }
 (function () {
   $('gname').addEventListener('input', renderEntries);
