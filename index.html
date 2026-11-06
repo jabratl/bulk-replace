@@ -151,6 +151,58 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
 .rawbox{border:1px solid var(--bd);border-radius:12px;background:var(--sf2);padding:8px 10px;font-size:14px;max-height:280px;overflow:auto;overflow-wrap:anywhere;white-space:pre-wrap;margin-top:6px}
 .rawp{padding:4px 0;border-bottom:1px solid var(--bd)}.rawp:last-child{border-bottom:0}.rawc{background:var(--acs);border-radius:8px;padding:4px 6px}
 .rawb{margin-left:8px}
+.card{scroll-margin-top:64px}
+.qnav{position:sticky;top:0;z-index:15;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:8px 0;margin:0 0 6px;background:var(--bg);overscroll-behavior-x:contain}
+.qnav::-webkit-scrollbar{display:none}
+.qnav button{flex:none;min-height:40px;padding:0 14px;border-radius:99px;font-size:14px;display:inline-flex;align-items:center;gap:7px;background:var(--sf);border:1px solid var(--bd);color:var(--fg);box-shadow:var(--sh)}
+.qnav button:hover{background:var(--acs)}
+.qnav .n{width:22px;height:22px;font-size:12px}
+.qnav .mode{border-color:var(--ac);color:var(--ac);font-weight:650}
+#uiHint{margin:0 0 12px}
+body:not(.simple) #uiHint{display:none}
+body.simple [data-adv]{display:none!important}
+.st{display:flex;flex-direction:column;min-width:0;line-height:1.25}
+.st b{font-weight:650;font-size:16px}
+.st small{font-weight:400;color:var(--mut);font-size:12.5px;margin-top:2px}
+.card.step{border-left:4px solid var(--ac)}
+.card>summary .n{width:28px;height:28px;font-size:14px;background:var(--ac);color:var(--acf)}
+details.box[open]>summary{border-bottom:1px solid var(--bd)}
+details.box>summary{color:var(--fg)}
+details.box>summary::after{content:"";margin-left:auto;width:7px;height:7px;border-right:2px solid var(--mut);border-bottom:2px solid var(--mut);transform:rotate(45deg) translate(-2px,-2px);transition:transform .2s}
+details.box[open]>summary::after{transform:rotate(-135deg)}
+.card .bd>.hint:first-child{padding:8px 10px;border-left:3px solid var(--bd);background:var(--sf2);border-radius:0 10px 10px 0}
+.card,.box{scroll-margin-top:64px}
+.gdflash{outline:2px solid var(--ac);outline-offset:3px;border-radius:12px}
+.gdqs{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:8px}
+button.gdq{display:flex;align-items:center;gap:10px;text-align:left;font-weight:400;padding:8px 10px;min-height:52px}
+.gdq .st b{font-size:14px}
+.gdq .st small{font-size:12px}
+.gdf>*{flex:1 1 0}
+.gdf button.chip{min-height:40px;padding:4px 16px;justify-content:center}
+#gdList{display:grid;gap:8px}
+.gdt{border:1px solid var(--bd);border-radius:12px;background:var(--sf2);overflow:hidden}
+.gdt>summary{display:flex;align-items:center;gap:8px;padding:8px 12px;min-height:48px;cursor:pointer;list-style:none;font-weight:600;font-size:15px;user-select:none}
+.gdt>summary::-webkit-details-marker{display:none}
+.gdt>summary::after{content:"";flex:none;width:8px;height:8px;border-right:2px solid var(--mut);border-bottom:2px solid var(--mut);transform:rotate(45deg) translate(-2px,-2px);margin-left:2px}
+.gdt[open]>summary::after{transform:rotate(-135deg)}
+.gdt[open]>summary{border-bottom:1px solid var(--bd)}
+.gdti{flex:1;min-width:0;overflow-wrap:anywhere}
+.gdlv{flex:none;margin:0;background:var(--acs);padding:2px 8px;border-radius:99px;font-size:11px}
+.gdlv.a{background:transparent;border:1px solid var(--bd);color:var(--mut)}
+.gdck{flex:none;font-size:11px;font-weight:700;background:var(--in);color:var(--inf);padding:2px 8px;border-radius:99px}
+.gdbd{padding:6px 12px 12px;display:grid;gap:8px;background:var(--sf)}
+.gdbd h4{margin:6px 0 0;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut)}
+.gdw{margin:0;font-size:15px}
+.gdbd ol{margin:0;padding-left:22px;font-size:15px;display:grid;gap:4px}
+.gdex{border:1px solid var(--bd);border-radius:12px;overflow:hidden;background:var(--sf2)}
+.gdl{padding:6px 10px;font-size:12.5px;font-weight:650;color:var(--mut);border-bottom:1px solid var(--bd);overflow-wrap:anywhere}
+.gdc{padding:8px 10px;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere;border-bottom:1px solid var(--bd);background:var(--sf);color:var(--ac);font-weight:600}
+.gdb,.gda{display:flex;gap:10px;padding:8px 10px;font-size:14px;overflow-wrap:anywhere}
+.gdb{background:var(--dl);color:var(--dlf)}
+.gda{background:var(--in);color:var(--inf)}
+.gdb b,.gda b{flex:none;width:44px;font-size:12px}
+.gdn{padding:6px 10px;font-size:13px;color:var(--mut)}
+.gdtip{margin:0;font-size:14px;background:var(--acs);border-radius:10px;padding:8px 10px}
 @media(min-width:980px){
 .app{padding-bottom:40px}
 .cols{grid-template-columns:minmax(0,5fr) minmax(0,6fr);align-items:start}
@@ -167,16 +219,53 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
 <body>
 <div class="app">
 <header class="top">
-  <div class="t"><h1>Bulk Replace<span class="ver">v5.17</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
+  <div class="t"><h1>Bulk Replace<span class="ver">v5.19</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
+  <button id="gdBtn" onclick="goGuide()" title="How to use every feature">Guide</button>
   <button id="hbtn" onclick="openHistory()" title="History of replace runs">History</button>
   <button class="icon" id="thm" onclick="cycleTheme()" aria-label="Change theme" title="Change theme">Auto</button>
 </header>
 
+<nav class="qnav" id="qnav" aria-label="Jump to a section">
+  <button class="mode" id="uiMode" onclick="uiToggle()" aria-pressed="false">Show all tools</button>
+  <button onclick="goGuide()" id="gdNavBtn">Guide<span class="ver" id="gdNew">New</span></button>
+  <button onclick="goCard('c1')"><span class="n">1</span>Novels</button>
+  <button onclick="goCard('c2')"><span class="n">2</span>Pairs</button>
+  <button onclick="goCard('c3')"><span class="n">3</span>Options</button>
+  <button data-adv onclick="goCard('geCard')">Entries</button>
+  <button data-adv onclick="goCard('rlCard')">Raw line</button>
+  <button onclick="goCard('hist')">History</button>
+  <button onclick="goCard('cBk')">Backup</button>
+  <button onclick="goCard('cSet')">Settings</button>
+</nav>
+<p class="hint" id="uiHint">Simple view: advanced tools (entries, raw helper, audit, term finder, honorifics) are hidden. Tap "Show all tools" to see them.</p>
+
 <div class="cols">
 <div class="left">
 
-<details class="card">
-  <summary>Settings and account</summary>
+<details class="card" id="gdCard">
+  <summary><span class="st"><b>Guide: how to use</b><small>Every feature with steps and examples</small></span><span class="ver" id="gdBadge" title="Topics marked as read">0/0</span></summary>
+  <div class="bd">
+    <p class="hint">New here? Follow the 5 quick steps. Then open any topic: what it does, steps, a before/after example and a tip. "Go there" jumps to the real button.</p>
+    <div class="gdqs" id="gdQs"></div>
+    <input type="text" id="gdQ" placeholder="Search the guide (e.g. undo, dialogue, backup)" autocomplete="off" aria-label="Search the guide">
+    <div class="row gdf">
+      <button class="chip on" id="gdLv_all" onclick="gdSetLv('all')" aria-pressed="true"><span>All</span></button>
+      <button class="chip" id="gdLv_b" onclick="gdSetLv('b')" aria-pressed="false"><span>Basic</span></button>
+      <button class="chip" id="gdLv_a" onclick="gdSetLv('a')" aria-pressed="false"><span>Advanced</span></button>
+    </div>
+    <div class="row">
+      <button class="sm" onclick="gdAll(true)">Expand all</button>
+      <button class="sm" onclick="gdAll(false)">Collapse all</button>
+      <button class="sm" onclick="gdReset()">Clear read marks</button>
+    </div>
+    <p class="hint" id="gdInfo" role="status"></p>
+    <div id="gdList"></div>
+    <p class="hint" id="gdEmpty" hidden>No topic matches. Try a shorter word.</p>
+  </div>
+</details>
+
+<details class="card" id="cSet">
+  <summary><span class="st"><b>Settings and account</b><small>Google sign-in, profiles, theme</small></span></summary>
   <div class="bd">
     <label class="fl">Google OAuth Client ID
       <small>Paste your Client ID in this box. Find it in Google Cloud Console: APIs and Services, then Credentials, then your OAuth 2.0 Web client. It looks like 1234567890-abcdef.apps.googleusercontent.com. It is only used to sign in and is not a password.</small>
@@ -200,7 +289,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
         <p class="hint">Picking a profile switches to its Client ID and My Work folder ID at once; then reload the novel list. Profiles are included in the backup.</p>
       </div>
     </details>
-    <details class="box" id="hoBox">
+    <details class="box" id="hoBox" data-adv>
       <summary>Honorific rules (keep, translate or drop)</summary>
       <div class="bd">
         <label class="fl">Language
@@ -226,7 +315,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
   </div>
 </details>
 
-<details class="card">
+<details class="card" id="cBk">
   <summary id="bkSum">Backup and restore</summary>
   <div class="bd">
     <p class="hint">A backup file holds your settings, glossaries, current pairs and options. It never contains your login token, so it is safe to keep.</p>
@@ -240,8 +329,8 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
   </div>
 </details>
 
-<details class="card" open>
-  <summary><span class="n">1</span>Novels and folders</summary>
+<details class="card step" id="c1" open>
+  <summary><span class="n">1</span><span class="st"><b>Novels and folders</b><small>Load your list and tick the novels to fix</small></span></summary>
   <div class="bd">
     <button class="pri" onclick="loadNovels()">Load novel list</button>
     <input type="text" id="nq" placeholder="Search novels..." oninput="filterNovels()" autocomplete="off">
@@ -263,8 +352,8 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
   </div>
 </details>
 
-<details class="card" open>
-  <summary><span class="n">2</span>Term pairs</summary>
+<details class="card step" id="c2" open>
+  <summary><span class="n">2</span><span class="st"><b>Term pairs</b><small>Write wrong => correct, one per line</small></span></summary>
   <div class="bd">
     <div class="row" id="qa">
       <input type="text" id="qaF" placeholder="Wrong term" autocomplete="off" autocapitalize="off" enterkeyhint="next">
@@ -278,7 +367,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
       <button class="sm" onclick="$('fPairs').click()">Import pairs (.txt)</button>
     </div>
     <input type="file" id="fPairs" accept=".txt,.csv,text/plain" hidden onchange="importPairs(this)">
-    <details class="box">
+    <details class="box" id="ptBox">
       <summary>Pair tools</summary>
       <div class="bd">
         <div class="row">
@@ -300,7 +389,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
       </div>
     </details>
     <p class="hint">Format: <b>wrong =&gt; correct</b>. Leave the correct part empty to delete that word. Several wrong spellings of one term can share a line, separated by " | " (example: tar bhai | tar bhaiya => his brother).</p>
-    <details class="box">
+    <details class="box" id="gsBox">
       <summary>Glossary (save term lists per novel)</summary>
       <div class="bd">
         <input type="text" id="gname" placeholder="Glossary name (e.g. the novel name)" autocomplete="off">
@@ -321,7 +410,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
   </div>
 </details>
 
-<details class="card" id="geCard">
+<details class="card" id="geCard" data-adv>
   <summary>Glossary entries (raw terms)<span class="ver" id="geBadge">0</span></summary>
   <div class="bd">
     <p class="hint">Entries keep the raw term (JP / KR / CN / RU / EN) next to the wrong spellings and the correct term. They produce normal <code>wrong =&gt; correct</code> lines, so everything else works as before. Set used (the glossary name typed or selected in Step 2): <b id="geWho"></b></p>
@@ -438,7 +527,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
   </div>
 </details>
 
-<details class="card" id="rlCard">
+<details class="card" id="rlCard" data-adv>
   <summary>Raw line helper</summary>
   <div class="bd">
     <p class="hint">Paste a raw line. Known terms come from the Glossary entries of the set above (longest match first); other words are romanized by rule. Approximate: dictionary substitution and rule romanization, not real translation. Works offline.</p>
@@ -470,8 +559,8 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
   </div>
 </details>
 
-<details class="card" open>
-  <summary><span class="n">3</span>Chapter range and options</summary>
+<details class="card step" id="c3" open>
+  <summary><span class="n">3</span><span class="st"><b>Chapter range and options</b><small>Choose chapters, then Preview</small></span></summary>
   <div class="bd">
     <div class="row">
       <input type="number" id="rfrom" placeholder="From chapter (e.g. 10)" inputmode="numeric" min="0">
@@ -515,7 +604,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
       <small>Fast is quicker on 100+ chapters. If Google's limit is hit, the scan pauses 30 seconds and continues by itself.</small>
     </label>
     <button onclick="countDocs()">Count docs and estimate time</button>
-    <details class="box" id="auBox">
+    <details class="box" id="auBox" data-adv>
       <summary>Glossary audit (count every term, nothing is changed)</summary>
       <div class="bd">
         <p class="hint">Counts how often each pair of Step 2 occurs in the files chosen above (same folders, range, filter and matching options as Preview). Tap a term to list its matches in Find only. Stop keeps the partial result.</p>
@@ -530,7 +619,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
         </div>
       </div>
     </details>
-    <details class="box" id="cxBox">
+    <details class="box" id="cxBox" data-adv>
       <summary>Find new terms and spelling variants (nothing is changed)</summary>
       <div class="bd">
         <p class="hint">Reads the files chosen above and lists capitalized names and phrases (1-3 words) that are not in your glossary yet. "Spelling variants" groups spellings that look like one name (Xiao Yan / Xiaoyan / Siao Yan); tap the correct one to add the pair. Stop keeps the partial result.</p>
@@ -3660,6 +3749,283 @@ function cvExport() {
   setStatus('Coverage exported (' + cvLast.rows.length + ' entries).');
 }
 document.addEventListener('DOMContentLoaded', () => { try { glRender(); } catch (x) {} });
+
+/* ---------- v5.18 (S19): simple / all-tools view + quick navigation (UI only, store 'ui') ---------- */
+function uiApply() {
+  const simple = store.get('ui', 'simple') !== 'all';
+  document.body.classList.toggle('simple', simple);
+  const b = $('uiMode'); b.textContent = simple ? 'Show all tools' : 'Simple view'; b.setAttribute('aria-pressed', String(!simple));
+}
+function uiToggle() { store.set('ui', store.get('ui', 'simple') === 'all' ? 'simple' : 'all'); uiApply(); }
+function goCard(id) {
+  const c = $(id); if (!c || getComputedStyle(c).display === 'none') return;
+  c.open = true; c.scrollIntoView({behavior: matchMedia('(prefers-reduced-motion:reduce)').matches ? 'auto' : 'smooth', block: 'start'});
+}
+uiApply();
+
+/* ---------- v5.19 (S20): Guide card (data-driven, UI only; store 'gdone' = JSON array of read topic ids, 'gdseen' = 1 after first open) ---------- */
+/* Topic: id, lv (b basic | a advanced), t title, go (element id for "Go there"), w what, s steps[], x example {l label, b before, a after, c text to copy, n note}, tip, k extra search words */
+const GD = [
+  {id: 'setup', lv: 'b', t: 'Sign in and set your folder', go: 'cSet', k: 'google client id login account drive',
+   w: 'Connects the app to your Google Drive so it can read and edit your Docs. Do this once.',
+   s: ['Open "Settings and account".', 'Paste your Google OAuth Client ID.', 'Paste the My Work folder ID or the whole folder link.', 'Tap "Save settings".'],
+   x: {l: 'My Work folder ID', b: 'drive.google.com/drive/folders/1Y7cF60rp...', a: 'Saved as the ID 1Y7cF60rp... (the link is accepted too)'},
+   tip: 'The Client ID is not a password. Use Profiles to switch between two Google accounts in one tap.'},
+  {id: 'novels', lv: 'b', t: 'Load and tick your novels', go: 'c1', k: 'folders list select search count',
+   w: 'Step 1. Choose which novel folders will be scanned. Only ticked folders and their subfolders are processed.',
+   s: ['Tap "Load novel list" and sign in when Google asks.', 'Type in the search box to find a novel.', 'Tick the folders you want. Tap the arrow to see subfolders.', 'Optional: "Count docs per novel" shows how many chapters each has.'],
+   x: {l: 'Step 1', b: 'Nothing ticked: "No folder selected."', a: 'Two novels ticked: two chips appear and only those folders are scanned'},
+   tip: 'Your ticks are remembered on this device. Use "Extra folders" for a folder outside My Work.'},
+  {id: 'pairs', lv: 'b', t: 'Write term pairs (wrong => correct)', go: 'c2', k: 'replace add quick pair format textarea',
+   w: 'Step 2. A pair says which wrong word to find and what to put instead. One pair per line.',
+   s: ['Quick way: type the wrong and correct term in the two boxes, tap "Add pair".', 'Or write lines in the big box: wrong => correct.', 'Start a line with # to keep it as a comment.', 'Check the line count under the box.'],
+   x: {l: 'Pairs box', c: 'Lee Wei => Li Wei', b: 'Lee Wei drew his sword.', a: 'Li Wei drew his sword.'},
+   tip: 'Pairs are saved as a draft automatically. Use the Glossary box to keep a list per novel.'},
+  {id: 'delete', lv: 'b', t: 'Delete a word or a note', go: 'c2', k: 'remove empty correct',
+   w: 'Leave the correct side empty and the wrong term is removed from the chapter.',
+   s: ['Type the text to remove in "Wrong term".', 'Leave "Correct term" empty.', 'Tap "Add pair", then Preview to check.'],
+   x: {l: 'Pairs box', c: '[TL note] =>', b: 'He left.[TL note]', a: 'He left.'},
+   tip: 'Short deletions can hit other text. Always Preview first and read the lines.'},
+  {id: 'range', lv: 'b', t: 'Choose chapters and files', go: 'c3', k: 'range from to filter scope name arc',
+   w: 'Step 3. Limit the run to some chapters so you do not scan the whole novel every time.',
+   s: ['Fill "From chapter" and "To chapter".', 'Optional: type part of a file name in the filter (for example Arc 2).', 'Pick "Files to include": all, only files changed in the last run, or only files that failed.', 'Tap "Count docs and estimate time" to see the size of the run.'],
+   x: {l: 'Chapter range', b: 'From and To empty: all 300 chapters are scanned', a: 'From 10, To 50: only chapters 10 to 50 are scanned'},
+   tip: 'The chapter number is read from the file name. Use "Only files that failed" to finish an interrupted run.'},
+  {id: 'preview', lv: 'b', t: 'Preview and review matches', go: 'bPrev', k: 'tick untick select review check safe',
+   w: 'Finds every match and shows it in a list. Nothing in your Docs changes.',
+   s: ['Tap "Preview and review" (bottom bar on a phone, Ctrl+Enter on a computer).', 'Wait for the scan. Tap Stop if you need to.', 'Read each line: found text and its replacement.', 'Untick wrong matches. Select all / none / invert help with long lists.', 'Tap "Replace ticked matches only".'],
+   x: {l: 'Review list', b: '3 matches ticked', a: 'Untick 1 wrong match, replace: 2 changed, 1 left as it was'},
+   tip: 'Open "More selection tools" to tick or untick every line that contains some text.'},
+  {id: 'replaceall', lv: 'b', t: 'Replace all', go: 'bAll', k: 'apply write confirm stop report',
+   w: 'Applies every pair to every chapter in range without reviewing line by line.',
+   s: ['Run Preview first and check the numbers.', 'Tap "Replace all" and confirm the question.', 'Watch the progress bar. Tap Stop to pause safely.', 'Tap "Save report (.txt)" to keep a record.'],
+   x: {l: 'Replace all', b: 'Preview: 120 matches in 40 chapters', a: 'After you confirm: 120 changed, run saved in History'},
+   tip: 'A failed write is never retried by itself. Use "Only files that failed" in Step 3 for a second pass.'},
+  {id: 'findonly', lv: 'b', t: 'Find only (change nothing)', go: 'fo', k: 'search list count safe export',
+   w: 'Lists matches and never writes to a Doc. Good for checking how often a term appears.',
+   s: ['In Step 3 switch on "Find only".', 'Add the term (the "=> correct" part is optional here).', 'Tap Preview. Read, filter, or export the list.'],
+   x: {l: 'Pairs box', c: 'Lee Wei', b: 'Find only is on', a: '14 matches listed, 0 changes made'},
+   tip: 'Turn it off again before a real run.'},
+  {id: 'mode', lv: 'b', t: 'Whole word and Match case', go: 'mode', k: 'contains word case uppercase lowercase',
+   w: 'Controls what counts as a match: any text, whole words only, and whether upper and lower case must be equal.',
+   s: ['In Step 3 open "Matching mode".', 'Contains = plain text anywhere. Whole word only = not inside bigger words.', 'Use the "Match case" switch for exact capitals.'],
+   x: {l: 'Whole word, Match case on', c: 'Ran => Lan', b: 'Ran ran past the Ranch.', a: 'Lan ran past the Ranch.', n: 'Contains mode would also change Ranch.'},
+   tip: 'Very short or common Latin terms are switched to whole word automatically in Contains mode. Check pairs tells you which ones.'},
+  {id: 'keepcase', lv: 'b', t: 'Keep capitalization', go: 'keepcase', k: 'upper lower title caps',
+   w: 'A capitalized match gets a capitalized replacement, ALL CAPS stays ALL CAPS.',
+   s: ['Switch off "Match case".', 'Switch on "Keep capitalization".', 'Write the pair in lowercase.'],
+   x: {l: 'Pairs box', c: 'master => teacher', b: 'Master smiled. MASTER! the master', a: 'Teacher smiled. TEACHER! the teacher'},
+   tip: 'It works best with Match case off.'},
+  {id: 'glossary', lv: 'b', t: 'Save a glossary per novel', go: 'gsBox', k: 'save load name export import auto',
+   w: 'Keeps the pairs of one novel under a name so you can load them later.',
+   s: ['Open "Glossary", type a name (the novel name works best).', 'Tap Save. Tap Load to bring it back.', 'Switch on "Auto-load" to load it when you tick that novel.', 'Export or import .txt files to move glossaries between devices.'],
+   x: {l: 'Glossary name', b: 'Pairs box holds 40 lines for My Novel', a: 'Saved. Ticking My Novel next time loads those 40 lines for you'},
+   tip: 'Glossaries are included in the backup file.'},
+  {id: 'pairtools', lv: 'b', t: 'Clean up your pairs', go: 'ptBox', k: 'check sort duplicates separators uncomment warnings',
+   w: 'Small helpers that fix and check the pairs box.',
+   s: ['Open "Pair tools".', 'Check pairs: warns about short terms, duplicates, chains and bad patterns.', 'Sort A-Z, Remove duplicates, Fix separators and Uncomment all pairs do what they say.'],
+   x: {l: 'Remove duplicates', b: 'Lee Wei => Li Wei (twice)', a: 'One Lee Wei => Li Wei line is kept'},
+   tip: 'A chain is a result that a later pair changes again. Check pairs lists them.'},
+  {id: 'undo', lv: 'b', t: 'Undo a replacement', go: 'ptBox', k: 'revert back swap reverse',
+   w: 'Turns the last run around: the new text becomes the term to find.',
+   s: ['Open "Pair tools" and tap "Prepare undo of last run" (or "Swap sides").', 'Run Preview and check the lines.', 'Replace the matches.', 'An old report works too: History, "Prepare undo from a saved report".'],
+   x: {l: 'Swap sides', c: 'Li Wei => Lee Wei', b: 'Li Wei drew his sword.', a: 'Lee Wei drew his sword.'},
+   tip: 'Undo is refused for runs that used Smart matching, because the matched spelling can differ from the term.'},
+  {id: 'history', lv: 'b', t: 'History of runs', go: 'hist', k: 'log previous runs report',
+   w: 'Every Replace run is saved with its pairs and the chapters it changed.',
+   s: ['Open "History of runs".', 'Search by pair text, chapter name or date.', 'Choose how many runs to keep (10, 20 or 50).', 'Open a run to read details or prepare an undo.'],
+   x: {l: 'History', b: 'You forgot which pair changed Chapter 45', a: 'Search the chapter name: the run and its pairs are listed'},
+   tip: 'History is not included in a backup unless you tick the switch.'},
+  {id: 'results', lv: 'b', t: 'Filter and export results', go: 'bPrev', k: 'csv copy sort expand context report',
+   w: 'After a Preview the results list can be filtered, sorted, exported and copied.',
+   s: ['Run Preview. The results card appears under the review list.', 'Type in the filter to narrow by file name or line text.', 'Sort files, change context length, Expand all or Collapse all.', 'Use "Export CSV (shown)" or "Copy list (shown)".'],
+   x: {l: 'Filter', b: '400 lines', a: 'Type his brother: only lines with that text are shown and exported'},
+   tip: 'Export and Copy only include what is currently shown.'},
+  {id: 'backup', lv: 'b', t: 'Backup and restore', go: 'cBk', k: 'export import json phone move',
+   w: 'Saves settings, glossaries, pairs and options in one .json file. It never contains your login token.',
+   s: ['Open "Backup and restore".', 'Optional: tick "Include run history".', 'Tap "Export backup (.json)".', 'On a new device tap "Import backup".'],
+   x: {l: 'New phone', b: 'Empty app', a: 'Import backup: Settings, glossaries and pairs are back'},
+   tip: 'Export a backup before big changes and keep the file in Drive.'},
+  {id: 'theme', lv: 'b', t: 'Theme and text size', go: 'thm', k: 'dark light auto font large',
+   w: 'Pick a comfortable look for night reading.',
+   s: ['Tap the button at the top right: Auto, Light, Dark in turn.', 'In Settings choose "Text size of match lines".'],
+   x: {l: 'Night reading', b: 'Bright white screen', a: 'Dark theme and Large text'},
+   tip: 'Auto follows your phone setting.'},
+
+  {id: 'variants', lv: 'a', t: 'Several wrong spellings in one line', go: 'c2', k: 'pipe alternatives variants',
+   w: 'Separate spellings with " | " (space, bar, space). The longest one wins.',
+   s: ['Write all wrong forms on the left, split by " | ".', 'Write the one correct term on the right.'],
+   x: {l: 'Pairs box', c: 'Lee Wei | Lie Wei | Li Way => Li Wei', b: 'Lee Wei, Lie Wei and Li Way', a: 'Li Wei, Li Wei and Li Wei'},
+   tip: 'Spaces around the bar matter.'},
+  {id: 'smart', lv: 'a', t: 'Smart matching', go: 'smart', k: 'hyphen apostrophe diacritics fullwidth macron spacing',
+   w: 'Treats spaces, hyphens, apostrophes, fullwidth letters, accents and long vowels as the same.',
+   s: ['In Step 3 switch on "Smart matching".', 'Choose which groups of differences count (all on by default).', 'Preview and check the lines.'],
+   x: {l: 'Pairs box', c: 'Xiao Yan => Xiao Yan', b: 'Xiao-Yan, XiaoYan and Xiao Yan', a: 'Xiao Yan, Xiao Yan and Xiao Yan'},
+   tip: 'It is off in Regular expression mode. Undo is not available for smart runs.'},
+  {id: 'flex', lv: 'a', t: 'Flexible spaces', go: 'flex', k: 'spaces whitespace double',
+   w: 'A single space in your term matches any run of spaces.',
+   s: ['In Step 3 switch on "Flexible spaces".', 'Write the term with normal single spaces.'],
+   x: {l: 'Pairs box', c: 'Li Wei => Li Wei', b: 'Li   Wei (three spaces)', a: 'Li Wei'},
+   tip: 'Smart matching already covers this, so the switch is ignored while Smart matching is on.'},
+  {id: 'regex', lv: 'a', t: 'Regular expressions', go: 'mode', k: 'regex pattern group',
+   w: 'For patterns instead of fixed words. Use $1, $2 for captured groups.',
+   s: ['In Step 3 set "Matching mode" to Regular expression.', 'Write the pattern on the left and the result on the right.', 'Run Check pairs to catch invalid patterns.'],
+   x: {l: 'Pairs box', c: 'Chapter (\\d+) => Ch. $1', b: 'Chapter 12 begins', a: 'Ch. 12 begins'},
+   tip: 'Preview a regex on one small range first.'},
+  {id: 'entries', lv: 'a', t: 'Glossary entries (raw terms)', go: 'geCard', k: 'raw japanese korean chinese russian name entry',
+   w: 'An entry keeps the raw term next to the wrong spellings and the correct term. It produces normal pair lines.',
+   s: ['Tap "Show all tools", then "Entries".', 'Tap "Add entry". Fill Raw term, Wrong forms (one per line) and Correct term.', 'Choose language and type, tap "Save entry".', 'Tap "Use as pairs" to fill the pairs box.', '"Save to glossary text" stores them as a normal glossary.'],
+   x: {l: 'Entry', b: 'Raw: Li Wei in Chinese. Wrong: Lee Wei, Lie Wei. Correct: Li Wei', a: 'Use as pairs writes: Lee Wei | Lie Wei => Li Wei'},
+   tip: 'Tap an entry to edit it. Reverse lookup finds the entry for a correct term.'},
+  {id: 'entryio', lv: 'a', t: 'Import and export entries (CSV, TSV, JSON)', go: 'geIO', k: 'spreadsheet conflict merge file paste',
+   w: 'Move entries to and from a spreadsheet or another device.',
+   s: ['Open "Glossary entries", then the import and export box.', 'Export CSV, TSV or JSON, or import a file or pasted text.', 'Choose what happens with duplicates (merge, skip, overwrite, keep).', 'Undo last import if the result is wrong.'],
+   x: {l: 'CSV example', c: 'Raw,Wrong,Correct,Language,Type,Note\nLee,Lee Wei | Lie Wei,Li Wei,zh,name,hero', b: 'Spreadsheet with two columns of names', a: 'Paste it: entries appear and the change log shows what was added'},
+   tip: 'Wrong forms are joined with " | " inside one cell.'},
+  {id: 'context', lv: 'a', t: 'Only in dialogue or near a word', go: 'geCard', k: 'context quotes near far condition',
+   w: 'An entry can apply only inside quotes, or only near (or not near) a word.',
+   s: ['Open an entry in "Glossary entries".', 'Under "Only apply" pick dialogue, near a word, or not near a word.', 'For near and far, fill "Word" and "Within (characters)".', 'Use as pairs, then Preview.'],
+   x: {l: 'Master => Teacher, only in dialogue', b: 'He said, "Master, come." The Master Sword glowed.', a: 'He said, "Teacher, come." The Master Sword glowed.'},
+   tip: 'A dialogue that continues in the next paragraph without an opening quote counts as outside.'},
+  {id: 'swap', lv: 'a', t: 'Swap name order', go: 'geCard', k: 'name order surname given',
+   w: 'A two-word wrong form also finds the reversed order.',
+   s: ['Open an entry and tick "Swap name order".', 'Save, then Use as pairs.'],
+   x: {l: 'Wrong form: Lee Wei', b: 'Lee Wei and Wei Lee', a: 'Li Wei and Li Wei'},
+   tip: 'Only for two-word wrong forms.'},
+  {id: 'honor', lv: 'a', t: 'Honorific rules', go: 'hoBox', k: 'san kun oppa nim senior',
+   w: 'Decide per language whether an honorific is kept, translated or dropped.',
+   s: ['Open Settings, then "Honorific rules".', 'Pick the language, then set each honorific.', 'Tick "Has honorific" on the entries that should use the rules.'],
+   x: {l: 'Entry Tanakka => Tanaka, Japanese', b: 'Tanakka-san', a: 'Keep: Tanaka-san. Drop: Tanaka'},
+   tip: 'Type honorifics without the hyphen (san, not -san).'},
+  {id: 'rawfind', lv: 'a', t: 'Find where raw terms appear', go: 'rwBox', k: 'raw folder chapters only where',
+   w: 'Link the folder with your raw chapters and see in which chapters each raw term really appears.',
+   s: ['Open "Raw chapters" in Glossary entries.', 'Pick the novel, paste the raw folder link, tap "Save link".', 'Tap "Find raw terms".', 'On an entry tick "Only where raw appears", then tap "Use as pairs" again.'],
+   x: {l: 'Entry limited to raw chapters', b: 'Pair would run on all 300 chapters', a: 'Only chapters where the raw term was found are changed'},
+   tip: 'The chapter list is a snapshot. Run the finder and "Use as pairs" again after you add raw chapters.'},
+  {id: 'rawline', lv: 'a', t: 'Raw line helper', go: 'rlCard', k: 'gloss romanize romaji pinyin hangul translate',
+   w: 'Paste a raw line to see known terms replaced with your entries and a rough romanization.',
+   s: ['Open "Raw line helper".', 'Paste the line and choose the language (or auto-detect).', 'Tap "Gloss and romanize".', 'Copy the glossed or the romanized line.'],
+   x: {l: 'Result', b: 'A raw line with the name Li Wei in it', a: 'Known name replaced by Li Wei, unknown words stay in [brackets], romanized line is approximate'},
+   tip: 'In a review list, the Raw button shows the raw paragraph of the same chapter once a raw folder is linked.'},
+  {id: 'audit', lv: 'a', t: 'Glossary audit', go: 'auBox', k: 'count terms unused dead pairs',
+   w: 'Counts every term of your pairs across the chapters. Nothing is changed.',
+   s: ['Open "Glossary audit" in Step 3 and tap "Run audit".', 'Sort by most matches or by not found first.', 'Download the CSV or the .txt report.'],
+   x: {l: 'Sort: not found first', b: '60 pairs', a: 'The 8 pairs with 0 matches are at the top, ready to comment out'},
+   tip: 'In the review list, "Comment out pairs with 0 matches" cleans them in one tap.'},
+  {id: 'terms', lv: 'a', t: 'Find new terms and spelling variants', go: 'cxBox', k: 'candidates names extractor clusters',
+   w: 'Scans chapters for capitalized names and phrases that are not in your glossary yet. Nothing is changed.',
+   s: ['Open "Find new terms and spelling variants".', 'Set the minimum count and tap "Find terms".', 'View "New terms" or "Spelling variants".', 'In a variant group tap the correct spelling to create the entry and pair.'],
+   x: {l: 'Spelling variants', b: 'Xiao Yan, Siao Yan, Xiao Yen found', a: 'Tap Xiao Yan: Siao Yan | Xiao Yen => Xiao Yan is added'},
+   tip: 'Add common words to "Ignore words" to keep the list short.'},
+  {id: 'dnt', lv: 'a', t: 'Do-not-translate list', go: 'cxBox', k: 'protect skip keep names titles',
+   w: 'Text inside these terms is never changed, even when a pair matches part of it.',
+   s: ['Open the term finder box, then "Ignore words and Do-not-translate list".', 'Write one term per line.', 'Preview: skipped matches are counted in the summary.'],
+   x: {l: 'Do not translate: Sword of Dawn, pair Dawn => Sunrise', b: 'Sword of Dawn rose at Dawn.', a: 'Sword of Dawn rose at Sunrise.'},
+   tip: 'It is case-sensitive.'},
+  {id: 'coverage', lv: 'a', t: 'Coverage report', go: 'cvBox', k: 'used unused chapters csv entries',
+   w: 'Shows which entries were used and in which chapters, from your last audit or preview.',
+   s: ['Run an audit or a Preview first.', 'Open "Coverage report", choose the source and tap "Build coverage".', 'Filter to unused entries or export CSV.'],
+   x: {l: 'Show: Unused', b: '40 entries', a: '6 are unused or not checked: review or delete them'},
+   tip: 'It reads the last result. It does not scan by itself.'},
+  {id: 'changelog', lv: 'a', t: 'Change log of entries', go: 'glBox', k: 'history diff import edits',
+   w: 'Every add, edit, delete, import or undo of entries is written to a log, newest first.',
+   s: ['Open "Change log" in Glossary entries.', 'Read the lines. After an import the box opens by itself.', 'Export .txt or Clear log.'],
+   x: {l: 'After an import', b: 'Unsure what the file changed', a: 'Lines like "added: Li Wei" and "correct: Lee Wei -> Li Wei"'},
+   tip: 'The last 200 lines are kept on this device.'},
+  {id: 'profiles', lv: 'a', t: 'Profiles for several accounts', go: 'cSet', k: 'switch account client id folder',
+   w: 'Saves a Client ID and folder ID pair so you can switch accounts in one tap.',
+   s: ['Open Settings, then "Profiles".', 'Type a name and tap "Save current IDs as profile".', 'Pick it from the list later, then reload the novel list.'],
+   x: {l: 'Two accounts', b: 'Paste IDs again every time', a: 'Choose Main account or Backup account from the list'},
+   tip: 'Profiles are included in the backup.'}
+];
+const GD_QS = [
+  ['cSet', 'Set up', 'Client ID and folder, once'],
+  ['c1', 'Pick novels', 'Load the list and tick'],
+  ['c2', 'Add pairs', 'wrong => correct'],
+  ['bPrev', 'Preview', 'Check every match'],
+  ['bAll', 'Replace', 'Confirm and finish']
+];
+let gdLv = 'all', gdOpenSet = new Set();
+function gdDoneGet() { try { const a = JSON.parse(store.get('gdone', '[]')); return new Set(Array.isArray(a) ? a : []); } catch (e) { return new Set(); } }
+function gdDoneSave(s) { store.set('gdone', JSON.stringify(Array.from(s))); }
+function gdHay(t) { return (t.t + ' ' + t.w + ' ' + t.s.join(' ') + ' ' + (t.k || '') + ' ' + (t.tip || '')).toLowerCase(); }
+function gdFlash(t) {
+  const f = t.closest('label,.box,details,.dock,.row') || t; f.classList.add('gdflash');
+  setTimeout(() => f.classList.remove('gdflash'), 2200);
+}
+function gdGo(id) {
+  const t = $(id); if (!t) return;
+  if (t.closest('[data-adv]') && document.body.classList.contains('simple')) { store.set('ui', 'all'); uiApply(); setStatus('Switched to All tools to show this section.'); }
+  if (t.hidden || getComputedStyle(t).display === 'none' || t.closest('[hidden]')) { setStatus('Run Preview first, then this section appears.'); gdGo('bPrev'); return; }
+  for (let p = t; p; p = p.parentElement) if (p.tagName === 'DETAILS') p.open = true;
+  const isCard = t.tagName === 'DETAILS';
+  t.scrollIntoView({behavior: matchMedia('(prefers-reduced-motion:reduce)').matches ? 'auto' : 'smooth', block: isCard ? 'start' : 'center'});
+  gdFlash(t);
+}
+async function gdCopy(id, btn) {
+  const t = GD.find(x => x.id === id); if (!t || !t.x || !t.x.c) return;
+  const ok = await copyText(t.x.c); const old = btn.dataset.l || btn.textContent; btn.dataset.l = old;
+  btn.textContent = ok ? 'Copied' : 'Copy failed'; setTimeout(() => { btn.textContent = old; }, 1600);
+}
+function gdMark(id) { const s = gdDoneGet(); s.has(id) ? s.delete(id) : s.add(id); gdDoneSave(s); gdRender(); }
+function gdAll(open) { GD.forEach(t => open ? gdOpenSet.add(t.id) : gdOpenSet.delete(t.id)); gdRender(); }
+function gdReset() { if (!confirm('Clear the "read" marks in the Guide?')) return; gdDoneSave(new Set()); gdRender(); }
+function gdSetLv(v) { gdLv = v; gdRender(); }
+function gdLine(cls, label, text) {
+  const d = el('div'); d.className = cls; const b = el('b', label); const s = el('span', text); d.append(b, s); return d;
+}
+function gdRender() {
+  const host = $('gdList'); if (!host) return;
+  const q = $('gdQ').value.trim().toLowerCase(), done = gdDoneGet();
+  host.textContent = '';
+  const list = GD.filter(t => (gdLv === 'all' || t.lv === gdLv) && (!q || q.split(/\s+/).every(w => gdHay(t).includes(w))));
+  [['all', 'All'], ['b', 'Basic'], ['a', 'Advanced']].forEach(([v]) => { const b = $('gdLv_' + v); if (b) { b.classList.toggle('on', gdLv === v); b.setAttribute('aria-pressed', String(gdLv === v)); } });
+  $('gdBadge').textContent = Array.from(done).filter(i => GD.some(t => t.id === i)).length + '/' + GD.length;
+  $('gdInfo').textContent = list.length ? list.length + ' of ' + GD.length + ' topics' : '';
+  $('gdEmpty').hidden = list.length > 0;
+  list.forEach(t => {
+    const d = el('details'); d.className = 'gdt'; d.id = 'gd_' + t.id; d.open = gdOpenSet.has(t.id);
+    d.addEventListener('toggle', () => { d.open ? gdOpenSet.add(t.id) : gdOpenSet.delete(t.id); });
+    const sm = el('summary'); const ti = el('span', t.t); ti.className = 'gdti';
+    const tg = el('span', t.lv === 'a' ? 'Advanced' : 'Basic'); tg.className = 'tag gdlv' + (t.lv === 'a' ? ' a' : '');
+    sm.append(ti, tg);
+    if (done.has(t.id)) { const ck = el('span', 'Read'); ck.className = 'gdck'; sm.append(ck); }
+    d.append(sm);
+    const bd = el('div'); bd.className = 'gdbd';
+    const w = el('p', t.w); w.className = 'gdw'; bd.append(w);
+    const h1 = el('h4', 'Steps'); const ol = el('ol'); t.s.forEach(x => ol.append(el('li', x))); bd.append(h1, ol);
+    if (t.x) {
+      const h2 = el('h4', 'Example'); bd.append(h2);
+      const ex = el('div'); ex.className = 'gdex';
+      const lab = el('div', t.x.l); lab.className = 'gdl'; ex.append(lab);
+      if (t.x.c) { const c = el('div', t.x.c); c.className = 'gdc'; ex.append(c); }
+      ex.append(gdLine('gdb', 'Before', t.x.b), gdLine('gda', 'After', t.x.a));
+      if (t.x.n) { const n = el('div', t.x.n); n.className = 'gdn'; ex.append(n); }
+      bd.append(ex);
+    }
+    if (t.tip) { const tp = el('p'); tp.className = 'gdtip'; const tb = el('b', 'Tip: '); tp.append(tb, document.createTextNode(t.tip)); bd.append(tp); }
+    const r = el('div'); r.className = 'row gdact';
+    const g = el('button', 'Go there'); g.className = 'sm pri'; g.onclick = () => gdGo(t.go); r.append(g);
+    if (t.x && t.x.c) { const c = el('button', 'Copy example'); c.className = 'sm'; c.onclick = () => gdCopy(t.id, c); r.append(c); }
+    const m = el('button', done.has(t.id) ? 'Mark as unread' : 'Mark as read'); m.className = 'sm'; m.onclick = () => gdMark(t.id); r.append(m);
+    bd.append(r);
+    if ($(t.go) && $(t.go).closest('[data-adv]')) { const n = el('p', 'This tool is in "All tools". Go there switches to it for you.'); n.className = 'hint'; bd.append(n); }
+    d.append(bd); host.append(d);
+  });
+}
+function gdInit() {
+  const qs = $('gdQs'); if (!qs) return;
+  GD_QS.forEach(([id, t, s], i) => {
+    const b = el('button'); b.className = 'gdq'; b.onclick = () => gdGo(id);
+    const n = el('span', String(i + 1)); n.className = 'n'; const w = el('span'); w.className = 'st'; w.append(el('b', t), el('small', s));
+    b.append(n, w); qs.append(b);
+  });
+  $('gdQ').addEventListener('input', gdRender);
+  gdRender();
+  try { if (store.get('gdseen', '') === '1') $('gdNew').hidden = true; } catch (e) {}
+}
+function goGuide() { const c = $('gdCard'); c.open = true; try { store.set('gdseen', '1'); } catch (e) {} $('gdNew').hidden = true; c.scrollIntoView({behavior: matchMedia('(prefers-reduced-motion:reduce)').matches ? 'auto' : 'smooth', block: 'start'}); }
+gdInit();
 </script>
 </body>
 </html>

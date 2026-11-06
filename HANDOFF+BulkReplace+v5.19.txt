@@ -1,0 +1,292 @@
+BULK REPLACE - MASTER HANDOFF  |  current: v5.19 (S1-S20 done)  |  plan: v5.0 -> v5.17
+==========================================================================
+This file is self-contained. HANDOFF.md = frozen legacy feature reference for v4.x (read only if a step says so).
+Mark steps [x] here when done and add a CHANGELOG line (see section 6).
+
+1. PROJECT SUMMARY
+- Single-file web app (index.html, ~3230 lines, 181 KB, vanilla JS, no build, no deps except Google GSI script).
+- Hosted on GitHub Pages. User works from Android phone mostly. UI text is English.
+- Purpose: bulk-replace wrongly translated terms across 100+ Google Docs chapters per novel in Drive ("My Work" folder), via Drive API (drive.readonly) + Docs API (documents).
+- Docs contain ONLY translated text (English or similar). Languages in scope: JP/KR/CN/RU raw + English translation. NO Bengali-specific work anywhere in this plan (existing Bengali-safe code from v4.x stays untouched, nothing new added). Raw (JP/KR/CN/RU) can only be used if the user keeps raw chapters as Docs (S13+).
+- All user data is in localStorage via helper `store` (get/set). Never remove or rename existing keys.
+- Rule of the project: SINGLE FILE index.html. No extra runtime files (so no PWA, no CDN libs, no network calls other than Google).
+- NO AI. Everything is rule/dictionary based. (Optional AI suggestions and Google Sheets master are PARKED, see section 8.)
+
+2. FILE MAP (index.html; line numbers are v4.8, they shift - always grep)
+- 7 <title>; 8 theme-boot script; 9 GSI script; 10-137 <style>; 139-433 HTML; 434+ <script> (one block).
+- HTML: header.top (h1 + span.ver, line ~143); step cards are <details class="card"> in this order:
+  Backup/restore (bkSum,bkHist,fBackup,bkInfo) | Step1 novels (nq,list,selbox,gsug,extra,rec) | Step2 term pairs (qa,qaF,qaR,pairs,pcount,fPairs,gname,gsel,fGloss,autog; .box blocks = Pair tools / Glossary) | Step3 range+options (mode,c,flex,keepcase,speed,rfrom,rto,nfilter,fo) | History (#hist) | right column: .dock (Preview/Replace all/Stop/progress/#log status), #empty, #rv review, #tb results toolbar.
+- JS landmarks (grep "^function name"): store/$/setStatus (~440); api, listFolders, listDocs, gatherDocs, scan (docs read loop, retry/429), collectParas(content,out) -> {text,segs}, toDoc, parsePairs, buildRe, keepCase, expandRepl, chNo(name), preview, applySelected (index-based insertText+deleteContentRange, descending, requiredRevisionId), replaceAll (replaceAllText for plain, match-by-match for word/regex/variants/flex/keepcase), buildMatch, showResults/renderList/buildFile, buildReport, saveHistory/runToR/viewRun, pairWarnings/pairCheck/quickAdd, gloss()/saveGloss/loadGloss/autoGloss/updateGlossSug, exportBackup/importBackup (OPT_IDS list at ~701 for remembered options), profs/applyProf, countDocs/countNovels, undoFromReport.
+
+3a. ADDED IN v5.0 (S1)
+- localStorage 'glex' = JSON {setName:[entry]}; setName = glossary name (#gname text, else #gsel value, else "(default)"). Also in backup (data.glex, backup doc version 5, merged by set name on import).
+- entry = {id,raw,wrong[],correct,lang(ja|ko|zh|ru|en|other),type(name|skill|place|title|other),note,from,to,rawCh[],rules{}}. correct may be "" (deletion).
+- Functions (end of script block): glexAll, glexSet, entriesGet, entryNew, glexClean, entriesToPairs(arr)->{text,count,skipped}, pairsToEntries(text), entriesMerge(base,add) (key raw+correct, case-insens, unions wrong), geName, renderEntries, geLoad, geUse, geClear. Hooks: refreshGloss() and loadGloss() call renderEntries(); #gname input and #gsel change re-render.
+- UI: <details class="card" id="geCard"> after Step 2, before Step 3; ids geBadge, geWho, geList (.exl scroll box, rows .exr with .rw/.wr/.ok), geInfo. CSS added before the min-width:980px media block.
+- Known: entries loaded from text have empty raw; add the raw by tapping the entry and editing it (S2) - adding a separate entry with the same wrong form creates duplicate finds (geSave asks only when the correct term differs).
+
+3b. ADDED IN v5.1 (S2)
+- geCard now has: Add entry, Save to glossary text (geSync: writes entriesToPairs into gloss[name], confirm before overwrite, needs a real glossary name), Clear entries; inline editor div#geEd (hidden) with geRaw, geWrong (textarea, one per line), geCor, geLang, geType, geNote, buttons geSave/geClose/geDel (#geDelB); search #geQ; filters #geFL (language) #geFT (type); reverse lookup #geRev -> #geRevOut.
+- Functions: geFiltered, renderEntries (filtered, rows are role=button div.exr, tap = geOpen(id) = detail+edit), geRevRender, geOpen(id|null), geClose, geSave (validation 'Write at least...', confirm if a wrong form is used by another entry with another correct term; keeps from/to/rawCh/rules on edit), geDel, geSync. Var geEditId, const LANG_NAME.
+- CSS: .exr[role=button], .exr .nt, .geed, .gerev.
+- Not done (later steps): no change log of edits (S18), no CSV import/export or merge-conflict choices (S3).
+
+3c. ADDED IN v5.2 (S3)
+- <details class="box" id="geIO"> inside geCard (after geInfo): Export CSV/TSV/JSON (geExport), conflict select #geConf (merge|skip|over|keep; key = raw+correct case-insens), Import file (#geFile -> geImportFile), paste box #geImpTxt (geImportText), Undo last import (#geUndoB, session memory geUndo), Convert all saved glossaries (geConvertAll).
+- Functions: csvParse(text,delim) (RFC4180, quotes, CRLF, BOM), geDelim, geWrongList (split on " | " or newline), geRowsToEntries (header names via GE_HDR; headerless: 3+ cols = Raw,Wrong,Correct,Lang,Type,Note,From,To; 2 cols = Wrong,Correct), geParseJson (array or {entries:[]}), geEntryKey, geApply(name,add,mode), geImportText2(text,label), geUndoImp, geExport(fmt), geConvertAll. Maps GE_HDR, GE_LANGMAP (ja/jp/japanese, ko/kr, zh/cn, ru, en).
+- Export formats: CSV/TSV with BOM, header Raw,Wrong,Correct,Language,Type,Note,From,To (wrong forms joined by " | "); JSON {app:'bulk-replace-entries',version:1,set,date,entries[]}. Import errors use the "Import failed: ..." prefix (shown red).
+- autoGloss(): if no text glossary matches the ticked novel but an entries set of that name exists, the entries are written to #pairs (confirm if pairs differ). updateGlossSug (Step 1 suggestion button) still looks at text glossaries only.
+- Repo note: GitHub repo root has index.html + .github/workflows/unzip.yml. The workflow unzips any root *.zip into the repo root (wrapper folder removed, .git/.github/*.zip skipped), so zips from steps can be uploaded as is; HANDOFF.txt from the zip also lands in the repo root.
+
+3d. ADDED IN v5.3 + v5.4 (S4+S5, built together)
+- Step 3 switches: #smart "Smart matching" (+ #smBox div.smbox with #smSp spaces/hyphens/apostrophes, #smW fullwidth/halfwidth + yo/e (ru) + zero-width, #smDia diacritics, #smRom long vowels). All 5 ids are in OPT_IDS (remembered, default sub-options on). Disabled/hidden in regular expression mode (updateModeHint). CSS: div.smbox.
+- buildRe(p): when #smart is on and mode is lit/word, every " | " variant goes through smartPattern(term,opts); flags 'gu' (+i when Match case off); max SM_MAX_ALTS=40 variants per line (throws "Invalid pattern: ..."), terms over SM_MAX_LEN=60 chars match as plain text. Flexible-spaces switch is ignored while smart is on.
+- Functions (before keepCase): smartOpts, smMaps (lazy: precomposed Latin map SM_PRE, halfwidth kana map SM_HALF), smCls, smartToken, smartPattern. Term is expanded, document text is never normalized (offsets stay valid). Separators (space - U+2010-2012 soft hyphen ' U+2018/2019 U+02BC ` U+00B4) in the term become [sep+zero-width]*; zero-width [U+200B-200D U+FEFF]* is allowed between all characters; ASCII -> fullwidth class; halfwidth/fullwidth katakana incl. voiced (ガ = ｶﾞ) and ー = ｰ; ё<->е; Latin base letter + any diacritic (precomposed or combining, \p{M}*); macron/circumflex vowel in the term also matches doubled forms: ā aa, ī ii, ū uu, ē ei/ee, ō ou/oo. NOT done on purpose: plain "ou/oo/uu" in a term does not match ō (too many false hits), and "Xiaoyan" in a term does not match "Xiao Yan" (list both forms as wrong variants; S9 clusters them).
+- Entry flag rules.swap (editor checkbox #geSwap, saved in geSave, kept on edit): entriesToPairs adds the reversed order for each 2-word wrong form (Li Wei | Wei Li). Not in CSV/JSON import/export yet (rules{} is not exported).
+- scan() result has .smart; buildReport "Matching:" line adds ", smart matching"; Replace all uses the match-by-match path when smart; lastRun/history runs store smart. Undo (prepare, history, from report) is refused for smart runs because the matched spelling can differ from the term.
+
+3e. ADDED IN v5.5 (S6)
+- store 'honor' = {ja|ko|zh|ru: [{t, pos:'s'(after name)|'p'(before name), act:'keep'|'tr'|'drop', tr}]}; missing key/lang = built-in defaults (hoDefaults(): ja san kun chan sama senpai; ko oppa hyung noona nim ssi; zh 师兄 师姐 + prefix Senior Brother/Senior Sister; ru prefix Gospodin Gospozha Tovarishch; all default act=keep). In backup (data.honor, replaced on import).
+- UI: Settings card > <details class="box" id="hoBox">: #hoLang, #hoList (.exl box of .hor rows: text, position, action, replace-with, Remove), hoAdd(), hoReset(). Functions (end of script): hoDefaults, honorClean, honorAll, hoSave (saves on every input/change; hoCur = language the list was drawn for, hoLock blocks saves while redrawing), hoRow, hoRender. CSS .hor.
+- Entry flag rules.honor (checkbox #geHon "Has honorific", saved in geSave, kept on edit). Implementation = pair-text expansion in entriesToPairs(arr, hon?): for entries with the flag and a correct term, for each honorific with act drop/tr a line `name-san | name san => replacement` is emitted BEFORE the plain line (ASCII honorifics get "-" and " " forms, CJK none, prefixes use " "); wrong forms that already carry an honorific are not expanded; keep = no line (the name changes, honorific stays). Translate joins: suffix `correct tr` (no space if tr starts with - , . ; : )), prefix `tr correct`. Drop = name+honorific -> correct. Works with Smart matching (separators already flexible). Case: honorific is lowercase as typed.
+- BEHAVIOUR CHANGE in applySelected (overlap): overlapping matches are now resolved by pair order (the pair higher in the list wins; before: the match with the later start won), then applied back to front. Same result as before when matches start at the same place; needed so a prefix honorific pair ("Senior Brother Wang") beats the plain name pair.
+- Not done: Russian patronymic endings cannot be generated from a name (list full patronymic words or titles yourself); rules{} (swap/honor) is still not in CSV/JSON export; honorific lines need Whole word mode to avoid hits inside longer words.
+
+3f. ADDED IN v5.6 (S7)
+- Shared walker (end of script): textPass(docs, perDoc(doc, paras, rawDoc), label) -> {done, stopped, failed}. Reads each doc via api() (retry/429), collectParas, readDelay(), Stop (stopFlag), progress(); a failing doc goes to .failed, 3 failures in a row abort. scan() is NOT refactored onto it (kept untouched on purpose); S8/S9/S13 should call textPass.
+- gatherDocs now tags each doc with .nov = path of the ticked folder it came from (docs from "last run"/"failed" lists have no .nov -> "(selected files)").
+- Step 3 card: <details class="box" id="auBox"> after the Count docs button: #auRun (disabled while busy), #auInfo, #auSort (pair/most/zero), #auList (.exl, rows .exr role=button), #auNov (per-novel rows, shown when 2+ novels), CSV + .txt buttons. CSS #auList:empty message, .exr .au.
+- Functions: glossaryAudit (uses current #pairs + Step 3 options exactly like Preview: same buildRe, same counting, so totals/files equal Preview; variants of a pair are classified with anchored per-variant regexes), auRender, auPreview(k) (temporarily puts that one pair in #pairs, turns Find only ON, runs preview(), restores #pairs; Find only stays on), auExport('csv'|'txt'). Var auLast = {T[{k,find,repl,n,files,v[],other,nov{}}], N{novel:{docs,files,n,terms:Set}}, docs, totalDocs, stopped, failed, mode, flex, smart, matchCase, rangeInfo, folders, time}.
+- CSV (UTF-8 BOM): Pair,Kind(pair|variant),Wrong,Correct,Novel(ALL or novel),Matches,Files; variant rows only for ALL. .txt report: header, Matching line, --- Pairs (with variants/novels lines), --- Novels, failed docs. Audit never sends a write request (GET only).
+- Not done: audit does not read entries directly (it audits the pairs in #pairs; load entries with "Use as pairs" first); no per-variant-per-novel counts.
+
+3g. ADDED IN v5.7 (S8) - candidate extractor
+- Step 3 card: <details class="box" id="cxBox"> after #auBox: #cxMin (min count, default 3), #cxView (c = New terms | v = Spelling variants), #cxRun, #cxInfo, #cxList (.exl, rows .exr), box with #cxStop (ignored words, store 'cxstop' text, default CX_STOP_DEF) + #cxDnt (Do-not-translate, one per line, store 'dnt' = JSON array of strings). Both keys are in backup (data.dnt, data.cxstop). Reset button cxStopReset().
+- Functions (end of script): cxRun (gatherDocs + textPass, label "Terms"), cxScanDoc (per paragraph: capitalized Latin tokens CX_TOK, runs joined by single spaces, all 1-3 word n-grams; first/last word must not be an ignored word, all-caps or 1 letter; counts n, mid (not at sentence start), f files, one sample line), cxPrune (drops count-1 terms at CX_CAP=20000 distinct terms; sets capped), cxKnown (glossary forms from entries of geName() + #pairs), cxRender, cxAdd(term) (opens the entry editor with Correct filled; wrong forms must be typed), cxDnt(term). Var cxLast = {M(Map term->{n,mid,f,s,d}), docs, totalDocs, stopped, failed, capped}.
+- List rule: single-word terms need at least one mid-sentence use (sentence-start capitals are ignored); multi-word terms do not. Top 300 shown.
+- Do-not-translate: stored and hidden from the finder only. It does NOT protect anything during Replace yet (S11 wires that).
+- Never writes to Docs (reads via textPass only).
+
+3h. ADDED IN v5.8 (S9) - spelling variants (same cxBox, view "Spelling variants", uses the last cxRun result)
+- cxKey(s) = NFD without marks, lowercase, separators removed, ou/oo -> o, doubled a/e/i/u -> single. cxClusters(min): pool = terms with n >= min (max 1200 by count) + glossary forms; union-find over keys: same key, or edit distance (cxNear, banded Levenshtein) <= 1 when the shorter key < 8 chars, <= 2 from 8 chars; keys under 4 chars never merge; groups fully made of glossary forms are hidden; 200 groups max, sorted by total uses.
+- icPick(cluster, form): one tap on the correct spelling -> entry {wrong: other spellings, correct, lang en, type name} merged into entries of geName() (entriesMerge) AND line `a | b => correct` added/updated at the end of #pairs. Refuses a form that is already a wrong form in the glossary. Groups update at once (resolved ones disappear).
+- Known noise: sub-phrases of one name can form their own group (Xiao / Siao next to Xiao Yan / Siao Yan).
+
+3i. ADDED IN v5.9 (S10) - per-pair options plumbing
+- Pairs text syntax: optional trailing ` @{json}` on the RIGHT side of => : {"from":N,"to":N,"mode":"lit|word","keep":true|false}. Parsed by parseMeta(s) (META_RE; invalid JSON or other keys = left as plain text). parsePairs() now returns pairs {find, repl, opts|null, meta}. Helpers: pairTag(p) (" [ch 1-200; whole word; keep case]" for reports), pairIn(p, chNo), pairKeep(p, globalKeep).
+- Behaviour: scan() and glossaryAudit() skip a pair for docs whose chNo is outside from..to (no chapter number = skipped when a range is set); buildRe(p) uses opts.mode (lit|word) instead of Step 3 mode unless Step 3 is regular-expression mode; keepCase uses opts.keep when set. replaceAll(): any pair with opts forces the match-by-match path (replaceAllText only when no pair has opts). Report, Preview summary and history view show the tag. lastRun/history pairs store opts; undoFrom skips pairs with keep:true (cannot reverse capitals), range/mode are not carried into the reverse pairs (the undo is limited to the changed files anyway).
+- Entries: entryMeta(e) adds the suffix in entriesToPairs (also on honorific lines) from e.from, e.to, e.rules.mode ('lit'|'word'), e.rules.keep (true|false); pairsToEntries parses it back. Editor fields #geFrom #geTo #geMode #geKeep (empty = Step 3 setting). CHANGE: entries imported earlier with From/To (CSV/JSON) now really restrict their pair when used as pairs.
+- pairSwap skips lines that carry @{...}. quickAdd rewriting an existing line drops its @{...}. auPreview keeps the suffix (t.meta).
+- Not done: rules.mode/keep not in CSV/JSON export (same as swap/honor); entry list rows do not show the range; capitalization/DNT/flags = S11; conditions = S12.
+
+3j. ADDED IN v5.10 (S11) - risk flags, Do-not-translate, capitalization rule
+- Risk flag: riskyFind(find) = any variant is letters-only Latin/Cyrillic and (<= 3 chars or in the ignored-words list cxStopSet()). pairForced(p) = Step 3 mode is Contains AND no per-pair mode AND risky -> buildRe uses whole word (p.fw overrides, audit variants pass fw). CJK/Hangul short terms are never flagged. Override per pair: `@{"mode":"lit"}`. Shown in pairTag ("whole word (auto: short or common)"), in pairWarnings (Check pairs) and replaceAll uses the match-by-match path when any pair is forced.
+- DNT: store 'dnt' (edited in the cxBox ignore panel). dntRe()/dntRanges(text,re): case-sensitive plain terms, longest first. scan() and glossaryAudit() skip any match overlapping a DNT occurrence in the same paragraph; counts in r.dnt / auLast.dnt, r.dntOn; shown in the Preview summary, report line "Do-not-translate: N matches skipped" and audit info. replaceAll uses the match-by-match path whenever the DNT list is not empty. pairWarnings warns when a pair's wrong form is itself on the DNT list.
+- Capitalization rule: entry rules.cap ('title'|'upper'|'lower'), editor #geCap, applied to the correct term in entriesToPairs (Title Case keeps of/the/and/a/an/in/on/to/for/at/by/or lower except first word). Not in CSV/JSON export, not restored by pairsToEntries.
+- Not done: DNT is not language-aware or case-insensitive; risk list is the ignored-words list plus length; no per-entry DNT flag.
+
+3k. ADDED IN v5.11 (S12) - context conditions
+- Pair suffix keys (flat JSON, no nested braces): "ctx":"dlg"|"near"|"far", "cw":"word" (1-60 chars, no { }), "cn":1-500 (default 50). parseMeta validates; near/far without a word = ignored. Entry rules.ctx/cw/cn -> entryMeta; pairsToEntries reads them back. Editor #geCtx #geCw #geCn.
+- ctxOk(o, text, a, b, spans) runs in scan() and glossaryAudit() right after the DNT check, on the original paragraph text: dlg = match fully inside a quote span (quoteSpans: " \u201C\u201D \u00AB\u00BB \u300C\u300D \u300E\u300F \u2018\u2019; an unclosed quote runs to the paragraph end; \u2019 between letters is an apostrophe); near/far = case-insensitive word within cn chars before/after the match (the match itself excluded). Skipped matches counted in r.ctx / auLast.ctx (Preview summary, report line, audit info). pairTag shows "only in dialogue" / "near \"w\" (n)".
+- Not done: quotes do not carry over paragraph breaks (a dialogue that continues in the next paragraph without an opening quote counts as outside); not in CSV/JSON export.
+
+3l. ADDED IN v5.12 (S13) - raw folders + raw term finder
+- Entries card > <details class="box" id="rwBox"> (before #geIO): #rwNov (ticked novels + already linked ones; value = novel folder path), #rwFolder (link or ID, fid()), rwSave/rwRemove, #rwMap (links), #rwRun, #rwInfo, #rwList. Stores: 'rawmap' = {novelPath: rawFolderId}, 'rawinfo' = {setName: {nov, date, docs, total, noNum, dup, onlyRaw, onlyTr}} (range-list strings). Both in backup (rawmap merged, rawinfo merged by set).
+- Functions (end of script): rwGet, rwInfoGet, rangeList(arr) -> "1-5, 9, 14-20", rwFill, rwSave, rwRemove, rawDocsFor(novel) (listDocs recursive), rwRender, rwRun. rwRun: textPass over raw docs, chNo(name) per doc (docs without a number are skipped and reported), for every entry of the current set with a Raw term: raw.includes(paragraph) -> entry.rawCh = sorted chapter numbers (written with glexSet only when the scan finished; Stop = partial result NOT saved). Mapping report compares raw chapter numbers with the translated docs of the ticked novel folder (Only in raw / Only in translation) and counts duplicates.
+- Editor: #geRawCh hint shows the chapters; editing the Raw term clears entry.rawCh. S14 uses entry.rawCh + rawinfo date (cache age).
+- Not done: plain case-sensitive text search (no smart matching on raw); rawCh not in CSV/JSON export; one novel per scan; the raw link is per novel path (renaming the folder breaks the key).
+
+3m. ADDED IN v5.13-v5.16 (S14-S17, built in one chat at the user's request)
+- S14 raw filter: entry rules.rawOnly (editor checkbox #geRawOnly, needs a raw term). entryMeta adds pair suffix key "rc" = rangeList(entry.rawCh) (e.g. "1-5, 9") or "none" when rawCh is empty (= pair applies nowhere). parseMeta validates rc (/^[\d\s,\-]{1,3000}$/ or "none"). rcParse(s), pairRcOk(p, chNo) (no chapter number = skipped); scan() and glossaryAudit() use pairIn && pairRcOk. scan() result: .rcDocs (docs where at least one in-range pair was skipped), .rcOn; Preview summary, report line "Raw-term filter: N docs skipped ...", audit info (auLast.rc). pairTag shows "raw term only, ch ...". pairWarnings: rc none = skipped everywhere; scan date from rawinfo[set].date missing or >30 days = warning. pairsToEntries reads rc back (rules.rawOnly + rawCh expanded, max 5000).
+  The rc list is a SNAPSHOT inside the pairs text: after "Find raw terms" run "Use as pairs" again. Switch OFF = no rc key = no effect.
+- S15 card #rlCard "Raw line helper" (after geCard): #rlIn, #rlLang (auto|ja|ko|zh|ru), #rlMac (macrons), rlRun(), #rlInfo, #rlOut: #rlTab (word table), #rlGl glossed line, #rlRo romanized line, copy via rlCopy(id). rlBuild(text, lang, ents, hon, mac) -> {lang, toks, gloss, roman}; rlSplit = longest match against entry.raw (entries of geName(); lang filter = same lang, other or en), gaps split by rlWords (Intl.Segmenter for ja/zh when available). Glossed line: matched -> correct, unknown -> [raw], Latin passes through, CJK punctuation mapped (RLP).
+- S16: kanaRom(t, mac) (Hepburn: youon, sokuon, n', long vowel mark, macrons, foreign small kana, halfwidth via NFKC), hangulRom(t) (Revised Romanization with linking, nasalization, ll; syllable level, approximate), cyrRom(t) (BGN-like), pyMap()/hanRom(t) (user dictionary store 'pydict' = TSV text "hanzi<TAB>pinyin", longest match, whole token stays raw if one word is unknown), romTok(t, lang, mac). Honorifics: entries with rules.honor get S6 rules applied to the following (suffix) or preceding (prefix) raw token; raw forms mapped by RLH (ja san/kun/chan/sama/senpai, ko oppa/hyung/noona/nim/ssi; zh/ru compare the typed text). Katakana-only unknown words are capitalized (ja). UI: #pyBox (#pyFile, #pyTxt, pyImport(text,label) merge, pyClear(), #pyInfo). 'pydict' is in backup (data.pydict, appended on import).
+- S17: scan() matches now carry .pi (paragraph index) and results carry .nov + .np (paragraph count). buildMatch(m, pair, mode, multi, f) adds a "Raw" button (.rawb) when file has .nov, match has .pi and any raw folder is linked. rawShow(f, m, wrap, btn) toggles .rawbox under the line: rawFor(nov, chNo) caches the raw doc list per novel and each raw doc per session (rawSess; ONE Docs read per raw chapter), shows paragraphs around index ratio pi/(np-1) widened +/-1, with S15/S16 gloss and romanized line under each. Messages for: no novel (saved list), no raw folder, no chapter number, no raw doc, empty doc, busy. CSS .rawbox .rawp .rawc .rawb.
+- Not done: raw alignment is by paragraph ratio only (no text matching); hangul romanization has no morpheme rules; ja kanji stay raw without a dictionary; rc/rawOnly/swap/honor/cap/ctx still not in CSV/JSON export; Intl.Segmenter quality depends on the browser (without it ja/zh words are whole runs).
+
+3n. ADDED IN v5.17 (S18) - change log + coverage report (both are .box blocks at the end of #geCard, after #rwBox/#geIO)
+- Change log: store 'glog' = [{d ISO, s set, e entry label, t text}], max GLOG_MAX=200 (oldest dropped); in backup (data.glog, merged by content, sorted, trimmed). Written centrally by glexSet(name, arr): glogDiff(name, old, new) compares entries by id on raw, wrong, correct, lang, type, note, from, to, rules (rawCh excluded on purpose) -> lines "added: ...", "deleted", "field: old -> new". So editor, delete, clear, import (all conflict modes), undo import, convert all, icPick/cxAdd all log without extra hooks. One call writes max GLOG_PER_CALL=60 lines + one "... N more changes not listed" line. UI #glBox: #glList (newest first), #glInfo, glExport() (.txt "glossary-log-<stamp>.txt"), glClear() (confirm). After an import the box opens (this is the import diff). glRender(), glogGet(), glogWrite().
+- Coverage: #cvBox: #cvSrc (audit|preview), #cvView (all|unused|used), cvBuild(), cvRender(), cvExport() (CSV). Source = auLast (audit; T[k].ch = {chapterNo or '?': count} added to glossaryAudit) or lastScan (Preview/find-only; per chapter from results[].counts + chNo). Entry -> pairs: entriesToPairs([entry]) lines, left side compared to the source pair find text (exact), so honorific expansions count. Status per entry: used | unused | not checked (its pair is not in the audited pairs) | no pair (no wrong form). Info line also counts audited pairs that do not come from entries. Partial source (Stop) is flagged. Var cvLast.
+- Not done: log has no per-user undo/redo; coverage does not scan, it only reads the last audit/preview; pairs edited by hand in #pairs are compared by exact find text.
+- PLAN COMPLETE (S1-S18). Remaining ideas are in section 8 (parked) and the "Not done" lines above.
+
+3o. ADDED IN v5.18 (S19, UI only, no logic change)
+- Quick nav: <nav class="qnav" id="qnav"> (sticky top, horizontal scroll, pill buttons) -> goCard(id) opens that card and scrolls to it. Card ids added: cSet (Settings), cBk (Backup), c1/c2/c3 (Steps 1-3, class "card step" = accent left border). Existing ids geCard, rlCard, hist reused as targets.
+- Simple / All tools: store 'ui' ('simple' default | 'all'); uiApply()/uiToggle(); button #uiMode (first chip in the nav); body.simple hides every [data-adv] element: #geCard, #rlCard, #auBox, #cxBox, #hoBox and the Entries / Raw line nav chips. #uiHint explains this in simple view. Hidden tools keep working (autoGloss etc.). Not in backup.
+- Step summaries are now <span class="st"><b>title</b><small>one-line help</small></span>; step number badge .n is solid accent. CSS: .qnav, .st, .card.step, details.box summary arrow, first hint of a card = soft note box. To add a new advanced tool: put data-adv on its card/box (and on its nav chip).
+- Not done: 'ui' not in backup; History card chip jumps to #hist (header History button unchanged).
+
+3p. ADDED IN v5.19 (S20, UI only, no logic change) - Guide card
+- <details class="card" id="gdCard"> is the FIRST card in the left column (collapsed). Opened by header button #gdBtn ("Guide") and nav chip #gdNavBtn (has a "New" badge #gdNew until first open) via goGuide(). Summary badge #gdBadge = read topics / total.
+- Content comes from a JS data list GD (end of script block): {id, lv 'b'|'a', t title, go element id, w what, s steps[], x {l label, b before, a after, c copy text, n note}, tip, k search words}. 34 topics (17 Basic, 17 Advanced). To add a topic: append one object to GD. Keep text in sync when a button label changes. GD_QS = the 5 quick-start tiles (#gdQs).
+- UI: #gdQ search (all words must match title/what/steps/tip/k), level chips #gdLv_all / #gdLv_b / #gdLv_a (gdSetLv), Expand all / Collapse all (gdAll), Clear read marks (gdReset), #gdInfo count, #gdEmpty, #gdList of <details class="gdt" id="gd_<id>">. Each topic: What, Steps, Example (Before red / After green, uses --dl/--dlf and --in/--inf), Tip, buttons "Go there" (gdGo), "Copy example" (only when x.c; uses copyText), "Mark as read".
+- gdGo(id): if target is inside [data-adv] and the view is Simple it switches to All tools (store 'ui'), opens every ancestor <details>, scrolls, flashes (.gdflash outline 2.2 s). Hidden targets show "Run Preview first..." and jump to #bPrev.
+- Store keys: 'gdone' (JSON array of read topic ids), 'gdseen' ('1' after first open). NOT in backup.
+- Ids added to existing boxes: #ptBox (Pair tools), #gsBox (Glossary). CSS: .card,.box{scroll-margin-top:64px} (nav no longer covers jump targets), .gd* classes before the min-width:980px block. No new CSS variables.
+- Not done: no deep link per topic (#gd_xxx works only after render), 'gdone' not in backup, guide text is English only, examples are copy-only (no "add to pairs box" button on purpose, to keep user data safe).
+
+3. KEY DATA SHAPES (v4.8, keep working)
+- Pairs text in textarea #pairs: lines `wrong => correct`; `#` = comment; variants on left: `a | b => c` (space-pipe-space, longest wins); no `=>` allowed only in Find-only (#fo).
+- parsePairs() -> {pairs:[{find,repl}], bad:[]}. Dedup by find.
+- Glossary: localStorage 'gloss' = JSON {name: pairsText}. Auto-load by novel-name match.
+- Other keys seen: rawmap, rawinfo, dnt (JSON array), cxstop (text), theme, hist (runs), lastRun, sel/selp (novel ticks), cnt (doc counts), profiles, opts, draft, tsize. Check with grep "store.get('" before adding a key.
+- Match object (buildMatch): file, link, pair index, found, replacement, ctx before/after, ticked.
+- Docs read gives paragraphs; matching runs per paragraph text; offsets mapped to doc indexes via segs (toDoc). ANY new matching feature MUST match on the ORIGINAL paragraph text (expand the pattern, do not normalize the text) so offsets stay valid.
+- chNo(name) = chapter number from file name; used for range filter, reuse for raw<->translated mapping.
+
+4. DESIGN RULES (audited from CSS; reuse, do not invent new styles)
+- Colors only via CSS vars: --bg #f1f3f8, --sf #fff (cards), --sf2 #f5f7fb (inputs/buttons), --fg #162033, --mut #5b667a (hints), --bd #dce1ec, --ac #2f5bea (accent) / --acf (text on accent) / --acs (accent soft bg, hover), --dl/--dlf (danger bg/text), --in/--inf (success), --er (error text), --sh (shadow). Dark values under :root[data-theme=dark] AND @media(prefers-color-scheme:dark) :root:not([data-theme=light]). New vars must be added in all 3 places.
+- Font: system-ui, -apple-system, "Segoe UI", "Noto Sans Bengali", Roboto, sans-serif; 16px/1.5 body; h1 22px (19px <=480px); hints 13px; match text size from #tsize (Normal/17/20px). Monospace not used; Existing font stack stays as is; no Bengali work.
+- Radius: cards 16px, buttons/inputs 10px, chips 99px, list boxes 12px. Card margin-bottom 14px. Section padding .bd = 14px 16px 16px, grid gap 10px (12px padding <=480px). Rows: .row flex gap 8px wrap, children flex:1 1 130px.
+- Components: <details class="card"><summary>title</summary><div class="bd">..</div></details>; nested .box; button (46px min height, 600 weight), .pri, .stop, .sm (38px), .icon; button.chip (pill with <span>text</span><b>x</b>); .sw switch toggle (label.sw > input[type=checkbox]); .hint; .tag (12px bold accent); .selbox; #list style scroll box (max-height 340, bg --sf2).
+- Tap targets >= 44px (small buttons 38px). Focus ring: 2px var(--ac). Respect prefers-reduced-motion and safe-area insets.
+- Breakpoints: >=980px two columns (5fr/6fr, dock sticky top 12px); <=979px one column, dock fixed bottom (bottom padding of .app 190px); <=480px tighter padding. Test at 390px and 1360px.
+- Theme: Light/Dark/Auto button, stored 'theme'. Status messages through setStatus(); error-like prefixes turn red (extend the regex at ~442 if you add a new error prefix).
+- Every new feature = new <details class="card"> or a .box inside an existing card; no modals except native confirm()/prompt() (existing convention) plus simple inline sheets built with the card style.
+- UI text English, short, no emoji.
+
+5. VERSION + CHANGELOG CONVENTION
+- Each step bumps the version: S1 = v5.0, S2 = v5.1 ... S18 = v5.17. Update: <span class="ver">, <title> stays "Bulk Replace", the version in the top comment if any, and the backup file "app" field if present.
+- CHANGELOG (bottom of this file): one line per step: `vX.Y (Sn) YYYY-MM-DD: what changed; tests run`.
+- Each step ships: patched index.html (changed files only) + updated HANDOFF.txt (tick box, changelog, any new ids/keys/functions in sections 2-3).
+- Versions stay cumulative; localStorage keys stay backward compatible; backups made with older versions must import cleanly.
+
+6. STANDING RULES
+1. PATCH ONLY: never rewrite index.html; edit with str_replace / small python/sed patches; grep first, view only needed line ranges (file is 30k tokens - do not read it fully).
+2. ONE STEP PER CHAT. Do only the step named in the kickoff line. Do not start the next step.
+3. Output CHANGED FILES ONLY (index.html + HANDOFF.txt; add others only if the step lists them).
+4. SESSION GUARD: stop adding work at ~85% of the session, hard stop at 90%. If a step will not fit, finish what is safe, keep the project working, write exact remaining TODO into the step's note in this file, and stop.
+5. Each step must leave the app working: no half-wired buttons, no JS errors. Verify syntax with `node --check` on the extracted script and, if possible, a Playwright smoke test with mocked APIs (mobile 390 + desktop 1360).
+6. Never change replace safety: writes are never auto-retried; Replace all still confirms; requiredRevisionId stays; Find-only never writes.
+7. New features default OFF or additive; old pairs text keeps working with no migration prompts.
+8. Do not add libraries, fonts, network calls or extra files. Use built-ins (Intl.Segmenter, String.normalize, RegExp with u flag and \p{..}).
+9. No AI. Translating a raw line = glossary substitution + rule transliteration only; label the output "approximate".
+
+7. STEP PLAN  (size = % of one chat session; S<=15, M 30-45)
+Legend: mode BUILD/MODIFY/FIX. "Ctx" = read-only context files. All steps modify index.html + HANDOFF.txt; Ctx is HANDOFF.md only when stated (otherwise not needed).
+
+PHASE A - Glossary entries with Raw column
+[x] S1 (v5.0) BUILD M ~35%  DONE
+    Goal: entry data model + read-only "Glossary entries" card that still generates normal pairs.
+    Do: store key 'glex' = {glossaryName:[entry]}; entry={id,raw,wrong:[],correct,lang('ja|ko|zh|ru|other'),type('name|skill|place|title|other'),note,from:null,to:null,rawCh:[],rules:{}}; fns entryNew(), entriesGet(name), entriesSet(name,arr), entriesToPairs(arr)->lines `w1 | w2 => correct` (skip entries with no wrong/correct, comment line `# raw` optional), pairsToEntries(text) (legacy import: raw empty). Card lists entries (compact rows), button "Use as pairs" writes lines to #pairs via setPairs; include glex in exportBackup/importBackup (merge by name).
+    Files: modify index.html, HANDOFF.txt. Design: new card after Step 2; rows like .nrow; hint text 13px.
+    Checks: node --check; old glossary loads unchanged; backup round-trip keeps glex; pairs generated parse via parsePairs (variants).
+[x] S2 (v5.1) MODIFY M ~35%  DONE  (dep S1)
+    Goal: edit entries on phone: table/list view, add/edit/delete, search, filters, detail, reverse lookup.
+    Do: inline edit sheet (fields Raw, Wrong variants (one per line), Correct, Language, Type, Note); search box over raw/wrong/correct; filters lang/type; tap row = detail with all forms; reverse lookup input (type correct -> raw + wrongs); "Save entries to glossary" keeps text glossary in sync (gloss[name]=entriesToPairs).
+    Checks: add/edit/delete persist after reload; JP/KR/CN/RU input renders; search matches all three columns; 390px layout.
+[x] S3 (v5.2) MODIFY M ~35%  DONE  (dep S1,S2)
+    Goal: import/export of entries + merge.
+    Do: export CSV/TSV (UTF-8 BOM) and JSON; import CSV/TSV/JSON and paste-from-spreadsheet textarea; header mapping Raw/Wrong/Correct/Language/Type/Note; conflict choice per import (skip / overwrite / keep both, by raw+correct key); convert an existing text glossary to entries; per-novel entries auto-load together with existing autoG logic (autoGloss).
+    Checks: Excel/Sheets CSV with JP/KR/CN/RU text; quoted commas; duplicate handling; legacy glossaries unaffected.
+
+PHASE B - Language-aware matching (new switch "Smart matching" in Step 3, remembered via OPT_IDS, forces match-by-match path like regex)
+[x] S4 (v5.3) MODIFY M ~35%  DONE
+    Goal: smart pattern builder A: spacing/hyphen/apostrophe, case, ё/е, fullwidth/halfwidth.
+    Do: fn smartPattern(term,opts)->regex source built from the ORIGINAL text pattern: optional zero-width chars (\u200B-\u200D\uFEFF) between letters; fullwidth/halfwidth Latin and CJK space (U+3000) equivalence via NFKC-aware classes; space/hyphen/apostrophe in term -> [\s\-\u2010\u2011]* (so Xiao Yan = Xiaoyan = Xiao-Yan); ё<->е for ru. Hook into buildRe (mode lit/word) when switch on. Report line "smart matching".
+    Checks: unit cases in node (each variant matches), offsets correct in preview + applySelected, plain mode untouched when switch off.
+[x] S5 (v5.4) MODIFY M ~35%  DONE  (dep S4)
+    Goal: smart pattern B: diacritics/macrons, romanization variants, name order.
+    Do: per-char alternations (ō|ō|ou|oo|o|ô, ū/uu/u, etc.), diacritics via NFD base-letter classes; entry.wrong romanization variants all join the alternation; name order swap for 2-word terms (Li Wei | Wei Li) only when entry flag "swap order" set; keep longest-first.
+    Checks: node cases; no catastrophic regex (cap alternation size); whole-word mode still Unicode-aware (existing).
+[x] S6 (v5.5) MODIFY M ~35%  DONE  (dep S4)
+    Goal: honorific rules per language with keep/translate/drop.
+    Do: table in Settings card: per language list (JP -san/-kun/-chan/-sama/-senpai, KR oppa/hyung/noona/-nim/-ssi, CN 师兄/师姐/senior brother, RU patronymic endings) x action keep/translate(text)/drop; applied as optional suffix/prefix group around a matched name (entry flag "has honorific"); stored 'honor'; included in backup.
+    Checks: drop removes honorific + separator; keep leaves; translate swaps; works with S4 patterns.
+
+PHASE C - Audit and discovery (no AI)
+[x] S7 (v5.6) BUILD M ~40%  DONE  (dep S1)
+    Goal: glossary audit + shared text-pass walker.
+    Do: fn textPass(docs, perDocFn) built on gatherDocs/scan reading (reuse retry, speed, Stop, progress); "Glossary audit" button runs every wrong variant as find-only, report counts per term and per novel (table + CSV + .txt), tap term -> loads it into Find-only preview.
+    Checks: Stop works with partial results; counts equal Preview counts for same pair; no writes sent.
+[x] S8 (v5.7) BUILD M ~40%  DONE  (dep S7)
+    Goal: candidate extractor (translated docs).
+    Do: via textPass count frequent capitalized Latin words / romanized names / repeated word n-grams (Intl.Segmenter) not in glossary; list with counts + sample line; tap = add to entries (wrong empty, needs correct) or to Do-not-translate.
+    Checks: stopword list small and editable; limits memory (cap 20k tokens); cancel works.
+[x] S9 (v5.8) BUILD M ~40%  DONE  (dep S7,S4)
+    Goal: inconsistency finder.
+    Do: cluster candidate/glossary spellings by smart-normalized key + edit distance <=2 (length-aware); show clusters (Xiao Yan / Xiaoyan / Siao Yan) with counts; pick the correct form -> adds `variants => correct` pair/entry with one tap.
+    Checks: no merge of unrelated short words (min length 4); cluster list capped.
+
+PHASE D - Per-entry rules (touches the matching pipeline: do in order)
+[x] S10 (v5.9) MODIFY M ~40%  DONE  (dep S1,S4)
+    Goal: per-pair options plumbing + chapter range per entry + per-entry mode/keepcase.
+    Do: pairs from entries carry opts {from,to,mode,keepcase}; pairs text syntax stays: add optional trailing `@{json}` metadata ONLY in generated lines or keep opts in a side array keyed by find; parsePairs returns opts; scan/applySelected/replaceAll honor: skip pair for docs whose chNo outside from..to; per-pair mode/keepcase override; plain pairs still use replaceAllText only when no pair has opts.
+    Checks: pair 1-200 vs 201+ on mocked chapters; undo prep not broken; history/report show range.
+[x] S11 (v5.10) MODIFY M ~35%  DONE  (dep S10)
+    Goal: risk flags, do-not-translate list, capitalization rules.
+    Do: auto flag short (<=3 chars) / common words -> forced whole-word with warning in pairWarnings; DNT list (terms never replaced; protected during replace by skipping overlapping matches); capitalization rule per entry (Title Case skill names).
+    Checks: DNT overlap skipped and counted in summary; flags visible in Check pairs.
+[x] S12 (v5.11) MODIFY M ~35%  DONE  (dep S10)
+    Goal: context conditions.
+    Do: per-entry condition: only in dialogue (paragraph contains quote chars " “ ” ‘ ’ « » 「 」 and match inside quotes) / only near word X within N chars / not near word X; evaluated on paragraph text before building the match.
+    Checks: node cases; preview counts change as expected; offsets intact.
+
+PHASE E - Raw chapters as a guide (needs raw Docs in Drive)
+[x] S13 (v5.12) BUILD M ~40%  DONE  (dep S1,S7)
+    Goal: raw folders per novel + raw term finder.
+    Do: Settings: map novel -> raw folder ID (profile-like, stored 'rawmap', in backup); fn rawDocsFor(novel) lists raw docs and maps by chNo; "Find raw term" scans raw docs (textPass) for entry.raw and stores entry.rawCh=[chapter numbers] (cache with date); show as range list "1-5, 9, 14-20".
+    Checks: chapter mapping with mismatched numbering reported; Stop works; cache survives reload.
+[x] S14 (v5.13) MODIFY M ~35%  DONE  (dep S13,S10)
+    Goal: apply a pair only where the raw term appears.
+    Do: entry switch "only where raw appears"; scan filters per pair using entry.rawCh by chNo of the translated doc; Preview shows "skipped N docs (raw term absent)"; warns when rawCh cache is missing/old.
+    Checks: two entries same wrong term, different chapters; no effect when switch off.
+
+PHASE F - Translate a raw line without AI
+[x] S15 (v5.14) BUILD M ~40%  DONE  (dep S1)
+    Goal: raw line helper A (glossary based).
+    Do: new card "Raw line helper": paste a raw line (JP/KR/CN/RU); segment by longest-match against entry.raw (all entries, language-filtered); for CJK gaps use Intl.Segmenter(lang,{granularity:'word'}); output (1) token table raw -> correct / ? (2) "glossed line": raw order with matched terms replaced by the entry's correct term, unknown tokens kept raw in [brackets]; (3) copy buttons. Label "approximate - dictionary substitution, not real translation".
+    Checks: overlapping terms prefer longest; no entries -> helpful empty state; works offline.
+[x] S16 (v5.15) BUILD M ~40%  DONE  (dep S15,S6)
+    Goal: raw line helper B (rule transliteration + honorifics).
+    Do: transliterators: hiragana/katakana -> Hepburn (macrons, youon, sokuon, long vowel mark), Hangul -> Revised Romanization (jamo arithmetic), Cyrillic -> Latin (BGN-like); optional user-imported pinyin dictionary (TSV hanzi<TAB>pinyin, stored 'pydict', in backup; no built-in Chinese dictionary); unknown tokens show romanization under the raw; honorific rules from S6 applied to matched names; output "romanized line".
+    Checks: node unit table for kana/hangul/cyrillic samples; hanzi without dict stay raw; size of file grows < 25 KB.
+[x] S17 (v5.16) BUILD M ~40%  DONE  (dep S13,S15)
+    Goal: side-by-side raw check from review.
+    Do: in review match row add "Raw" button: finds raw doc of the same chapter (rawmap + chNo), takes the paragraph at approx same relative position (index ratio, widened +/-1 paragraph), shows raw text with S15/S16 gloss under it; label "approximate alignment"; cache raw doc per session.
+    Checks: missing raw doc message; one Docs read per chapter (cached); 390px layout.
+
+PHASE G - Reports and maintenance
+[x] S18 (v5.17) BUILD M ~35%  DONE  (dep S7,S1)
+    Goal: coverage report + change log/diff.
+    Do: coverage: entries used / unused and counts per chapter from the last audit or preview; glossary change log (store 'glog', max 200 lines: date, entry, field old->new) written by S2/S3 editors; diff view when importing; export log .txt.
+    Checks: log trimmed at max; unused list matches audit.
+
+8. PARKED (not planned, ask the user before starting)
+- Google Sheets as master glossary (extra OAuth scope + Sheets API).
+- AI suggestions (API key in browser) - excluded by user ("no AI").
+- Installable PWA (breaks single-file rule).
+
+9. TEST NOTES
+- Real Drive/Docs never tested in older versions beyond mocks; first real run: Preview on one small novel, tick 1-2 matches, check the Doc.
+- Playwright with mocked Google APIs was used in v4.x (suites not in this zip). For new steps, at minimum: node --check on extracted <script>, node unit tests for pure functions (smartPattern, entriesToPairs, transliterators), one mocked-DOM smoke test if Playwright is available.
+
+10. NEXT-CHAT KICKOFF LINE (copy exactly, change the step id each time). Step plan S1-S20 finished. This file is delivered as "HANDOFF+BulkReplace+v5.19.txt" at the user request; if the repo workflow expects HANDOFF.txt, rename it
+"Read HANDOFF.txt (uploaded). Do ONLY the step the user names (the S1-S18 plan is finished; check section 8 and the "Not done" notes). Patch index.html only, output changed files only, one step per chat, stop at 85% session (hard stop 90%), tick [x] and add CHANGELOG."
+
+11. CHANGELOG
+v5.19 (S20) 2026-11-06: Guide card: 34 topics (Basic/Advanced) with What, Steps, before/after Example, Tip; search + level filter, quick-start tiles, Go there (opens card, switches to All tools if needed, highlights target), Copy example, read marks + progress; header Guide button and nav chip. Tests: node --check, no duplicate ids, Playwright 360+1280 light+dark (search, filter, copy, mark read, go-there for 9 targets incl. nested boxes, no overflow, 0 JS errors, every go target exists). NOT tested: real Drive/Docs, real phone, clipboard on old browsers (shows "Copy failed"); read marks persistence flaked once in 1 of 12 headless runs (file:// storage), not reproduced in 3 reruns.
+v5.18 (S19) 2026-11-06: easier layout: sticky quick-nav chips (jump + open), Simple / All tools switch (default Simple, hides entries, raw helper, audit, term finder, honorifics), step cards with one-line help and number badges, tidier boxes and hints. Tests: node --check, no duplicate ids, Playwright 360+1280 light+dark (hidden/shown cards, nav jump opens card, setting persists after reload, no overflow, 0 JS errors). NOT tested: real Drive/Docs, very old browsers (uses sticky + flex only).
+v5.17 (S18) 2026-11-06: glossary change log (store glog, max 200, backup, export .txt, import diff via log lines, written from glexSet) + coverage report (used/unused entries with chapters from last audit or preview, CSV); audit now records counts per chapter. Tests: node --check, no duplicate ids, Playwright mocked Docs 360+1280 light+dark (add/edit/delete lines, 60-line cap per call, trim, coverage used/unused/no pair, chapters 3-6, preview source, empty-source message, no overflow, 0 JS errors). NOT tested: real Docs, backup file round trip of glog in the UI.
+v5.16 (S17) 2026-11-06: "Raw" button on review/preview lines shows the raw paragraph of the same chapter (rawmap + chNo, paragraph index ratio +/-1, cached per session) with gloss and romanized line. Tests: Playwright mocked Docs 360+1280 light+dark (button only with linked raw folder, alignment 4 of 10, toggle, 1 raw read), node --check. NOT tested: real Drive/Docs.
+v5.15 (S16) 2026-11-06: rule romanization: kana -> Hepburn (macrons option), Hangul -> Revised Romanization, Cyrillic -> BGN-like, optional pinyin dictionary import (store pydict, backup), honorific rules applied to names with the flag. Tests: node unit table (28 kana/hangul/cyrillic/pinyin cases), Playwright 360+1280 light+dark, 0 JS errors.
+v5.14 (S15) 2026-11-06: card "Raw line helper": longest-match glossary substitution, word table, glossed line, romanized line, copy buttons, empty-state hint, offline. Tests: Playwright (JA/KO/RU/ZH lines, honorific drop/keep/translate), no overflow.
+v5.13 (S14) 2026-11-06: entry switch "Only where raw appears" -> pair suffix "rc" from entry.rawCh; scan/audit skip docs where the raw term is absent; summary/report/audit counts; warnings for missing or old (>30 days) raw cache. Tests: Playwright mocked Docs (rc "4, 7-8" -> files 4,7,8 and 7 docs skipped; no key = no effect; "none"; entry round trip; editor save/clear), node --check, no duplicate ids. NOT tested: real Docs.
+S14-S17 built in one chat at the user's request (overrides the one-step rule for this chat only).
+v5.12 (S13) 2026-11-06: raw folder link per novel (store rawmap, backup), "Find raw terms" scan stores entry.rawCh with chapter range list, mapping report vs translated chapters, cache survives reload, Stop keeps stored data. Tests: node --check, no duplicate ids, Playwright mocked Drive/Docs 360+1280 light+dark (JP/CN raw, ranges 1, 3-4, mismatch 'Only in raw: 7', file without number, reload, Stop, 0 writes, 0 JS errors). NOT tested: real Drive.
+v5.11 (S12) 2026-11-06: per-pair/entry conditions: only in dialogue (quotes), only near / not near a word within N chars; skipped counts in Preview/report/audit. Tests: node unit (quote spans, apostrophes, near/far windows), Playwright (Preview == audit, entry round trip, validation).
+S12+S13 built in one chat at the user's request.
+v5.10 (S11) 2026-11-06: auto whole-word for short/common Latin-Cyrillic terms (override @{"mode":"lit"}), flags in Check pairs/tags, Do-not-translate protection in Preview/Replace/audit with skipped count, per-entry capitalization rule (Title/UPPER/lower). Tests: node --check, no duplicate ids, Playwright mocked Docs 360+1280 light+dark (DNT overlap skipped 7 of 11, audit == Preview, override, cap rules, 0 writes, 0 JS errors). NOT tested: real Docs, applySelected with DNT.
+v5.9 (S10) 2026-11-06: per-pair options via ` @{json}` suffix (chapter range, whole word/contains, keep capitalization), entry editor fields, pairs generated with suffix, range/mode/keep honoured by Preview, Replace (match-by-match), audit; tag shown in reports. Tests: node --check, no duplicate ids, Playwright mocked Docs 360+1280 light+dark (range 1-200 vs 250, per-pair whole word, keepcase on/off, audit == Preview, entry round trip, bad range message, 0 writes, 0 JS errors). NOT tested: real Docs, applySelected with mocked batchUpdate, undo prep with opts.
+v5.8 (S9) 2026-11-06: spelling variant groups (smart key + edit distance), one tap on the correct spelling adds the pair to entries and to #pairs. Tests: node/Playwright (Xiao Yan / Xiaoyan / Siao Yan group, resolved group disappears, wrong-form pick refused).
+v5.7 (S8) 2026-11-06: candidate extractor in Step 3 (capitalized 1-3 word terms not in glossary, counts, sample line, add to entries / Do-not-translate, editable ignore list, 20k term cap, Stop gives partial result). Tests: Playwright mocked Docs (counts, mid-sentence rule, stopwords, Stop partial 2/3, 0 writes).
+S8+S9+S10 were built in one chat at the user's request (overrides the one-step rule for this chat only).
+v5.6 (S7) 2026-11-06: glossary audit (Step 3 box): counts per pair, per variant and per novel, sort, tap a term -> Find only for that pair, CSV + .txt export; shared textPass walker; docs tagged with novel folder. Tests: node --check, no duplicate ids, Playwright mocked Drive/Docs at 360+1280 light+dark (audit totals/files == Preview totals for plain and smart+whole-word, 2 novels, variant split, zero-first sort, tap term keeps pairs box, CSV/txt, Stop gives partial result and unlocks UI, 0 write requests, no overflow, 0 JS errors); S4-S6 suites still pass. NOT tested: real Drive/Docs.
+v5.5 (S6) 2026-11-06: honorific rules per language (keep/translate/drop, suffix or prefix) in Settings, store 'honor' + backup, entry flag "Has honorific" expands to ordered pair lines; overlap rule in applySelected now = earlier pair wins. Tests: node cases (drop/translate/keep, prefix+suffix, CJK, swap+honorific, smart, already-honorific wrong forms, clean/defaults), node --check, no duplicate ids, Playwright 360+1280 light+dark (edit/add/reset rows, persistence after reload, language switch, backup holds honor, entry flag, no overflow, 0 JS errors). NOT tested: real Docs run, applySelected with mocked API.
+v5.4 (S5) 2026-11-06: smart matching B: diacritics (o = ō, é = e), long-vowel romanization (ō = ou/oo/ô/o, ū = uu/û/u, ā, ī, ē), entry flag "swap name order" (Li Wei | Wei Li) via entriesToPairs, sub-switches smDia/smRom. Tests: node cases (macron/circumflex/decomposed text+term, case modes, switches off, backtracking timing), node --check, no duplicate ids, Playwright 360+1280 light+dark (swap flag, option persistence, 0 JS errors, no overflow).
+v5.3 (S4) 2026-11-06: smart matching A: switch "Smart matching" (forces match-by-match path), spaces/hyphens/apostrophes optional, fullwidth/halfwidth Latin + kana, ё/е, zero-width chars, report line, undo refused for smart runs. Tests: node cases (each variant matches, CJK/Hangul untouched, special chars escaped, 60-char fallback, offsets), plain mode untouched when off (Playwright buildRe check).
+v5.2 (S3) 2026-11-06: import/export of entries (CSV/TSV/JSON, paste from spreadsheet), conflict choices merge/skip/overwrite/keep both, undo last import, convert all saved glossaries, autoGloss falls back to entries-only sets. Tests: node --check, no duplicate ids, Playwright 360+1280 light+dark (CSV with BOM/quotes/CRLF/multiline, JP/KR/CN/RU, 4 conflict modes, undo, CSV/TSV/JSON export + re-import round trip, headerless 2/3 columns, invalid JSON, empty, convert all, autoGloss fallback, no overflow, 0 JS errors).
+v5.1 (S2) 2026-11-06: entry editor (add/edit/delete), search over raw/wrong/correct/note, language+type filters, tap row = detail/edit, reverse lookup, Save to glossary text. Tests: node --check, no duplicate ids, Playwright 360+1280 light+dark (add 4 entries incl. zh/ja/ru, search by raw, filter, reverse lookup, edit, delete, validation, sync to text glossary, reload persistence, no overflow, 0 JS errors).
+v5.0 (S1) 2026-11-06: glossary entries data layer ('glex'), read-only Glossary entries card (Load from glossary text / Use as pairs / Clear), glex in backup. Tests: node --check, no duplicate ids, Playwright 360+1280 light+dark (load, add raw entry, use as pairs, backup round trip, no overflow, 0 JS errors).
+plan rev2: Bengali items removed from plan (S4, S8, S15, tests); scope = JP/KR/CN/RU raw + English.
+v4.8 (base): profiles, doc counts, glossary files, auto-load glossary, uncomment, undo from report (see HANDOFF.md for v4.1-v4.8).
