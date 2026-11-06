@@ -1,4 +1,4 @@
-BULK REPLACE - MASTER HANDOFF  |  current: v5.12 (S1-S13 done)  |  plan: v5.0 -> v5.17
+BULK REPLACE - MASTER HANDOFF  |  current: v5.17 (S1-S18 done, plan complete)  |  plan: v5.0 -> v5.17
 ==========================================================================
 This file is self-contained. HANDOFF.md = frozen legacy feature reference for v4.x (read only if a step says so).
 Mark steps [x] here when done and add a CHANGELOG line (see section 6).
@@ -95,6 +95,20 @@ Mark steps [x] here when done and add a CHANGELOG line (see section 6).
 - Functions (end of script): rwGet, rwInfoGet, rangeList(arr) -> "1-5, 9, 14-20", rwFill, rwSave, rwRemove, rawDocsFor(novel) (listDocs recursive), rwRender, rwRun. rwRun: textPass over raw docs, chNo(name) per doc (docs without a number are skipped and reported), for every entry of the current set with a Raw term: raw.includes(paragraph) -> entry.rawCh = sorted chapter numbers (written with glexSet only when the scan finished; Stop = partial result NOT saved). Mapping report compares raw chapter numbers with the translated docs of the ticked novel folder (Only in raw / Only in translation) and counts duplicates.
 - Editor: #geRawCh hint shows the chapters; editing the Raw term clears entry.rawCh. S14 uses entry.rawCh + rawinfo date (cache age).
 - Not done: plain case-sensitive text search (no smart matching on raw); rawCh not in CSV/JSON export; one novel per scan; the raw link is per novel path (renaming the folder breaks the key).
+
+3m. ADDED IN v5.13-v5.16 (S14-S17, built in one chat at the user's request)
+- S14 raw filter: entry rules.rawOnly (editor checkbox #geRawOnly, needs a raw term). entryMeta adds pair suffix key "rc" = rangeList(entry.rawCh) (e.g. "1-5, 9") or "none" when rawCh is empty (= pair applies nowhere). parseMeta validates rc (/^[\d\s,\-]{1,3000}$/ or "none"). rcParse(s), pairRcOk(p, chNo) (no chapter number = skipped); scan() and glossaryAudit() use pairIn && pairRcOk. scan() result: .rcDocs (docs where at least one in-range pair was skipped), .rcOn; Preview summary, report line "Raw-term filter: N docs skipped ...", audit info (auLast.rc). pairTag shows "raw term only, ch ...". pairWarnings: rc none = skipped everywhere; scan date from rawinfo[set].date missing or >30 days = warning. pairsToEntries reads rc back (rules.rawOnly + rawCh expanded, max 5000).
+  The rc list is a SNAPSHOT inside the pairs text: after "Find raw terms" run "Use as pairs" again. Switch OFF = no rc key = no effect.
+- S15 card #rlCard "Raw line helper" (after geCard): #rlIn, #rlLang (auto|ja|ko|zh|ru), #rlMac (macrons), rlRun(), #rlInfo, #rlOut: #rlTab (word table), #rlGl glossed line, #rlRo romanized line, copy via rlCopy(id). rlBuild(text, lang, ents, hon, mac) -> {lang, toks, gloss, roman}; rlSplit = longest match against entry.raw (entries of geName(); lang filter = same lang, other or en), gaps split by rlWords (Intl.Segmenter for ja/zh when available). Glossed line: matched -> correct, unknown -> [raw], Latin passes through, CJK punctuation mapped (RLP).
+- S16: kanaRom(t, mac) (Hepburn: youon, sokuon, n', long vowel mark, macrons, foreign small kana, halfwidth via NFKC), hangulRom(t) (Revised Romanization with linking, nasalization, ll; syllable level, approximate), cyrRom(t) (BGN-like), pyMap()/hanRom(t) (user dictionary store 'pydict' = TSV text "hanzi<TAB>pinyin", longest match, whole token stays raw if one word is unknown), romTok(t, lang, mac). Honorifics: entries with rules.honor get S6 rules applied to the following (suffix) or preceding (prefix) raw token; raw forms mapped by RLH (ja san/kun/chan/sama/senpai, ko oppa/hyung/noona/nim/ssi; zh/ru compare the typed text). Katakana-only unknown words are capitalized (ja). UI: #pyBox (#pyFile, #pyTxt, pyImport(text,label) merge, pyClear(), #pyInfo). 'pydict' is in backup (data.pydict, appended on import).
+- S17: scan() matches now carry .pi (paragraph index) and results carry .nov + .np (paragraph count). buildMatch(m, pair, mode, multi, f) adds a "Raw" button (.rawb) when file has .nov, match has .pi and any raw folder is linked. rawShow(f, m, wrap, btn) toggles .rawbox under the line: rawFor(nov, chNo) caches the raw doc list per novel and each raw doc per session (rawSess; ONE Docs read per raw chapter), shows paragraphs around index ratio pi/(np-1) widened +/-1, with S15/S16 gloss and romanized line under each. Messages for: no novel (saved list), no raw folder, no chapter number, no raw doc, empty doc, busy. CSS .rawbox .rawp .rawc .rawb.
+- Not done: raw alignment is by paragraph ratio only (no text matching); hangul romanization has no morpheme rules; ja kanji stay raw without a dictionary; rc/rawOnly/swap/honor/cap/ctx still not in CSV/JSON export; Intl.Segmenter quality depends on the browser (without it ja/zh words are whole runs).
+
+3n. ADDED IN v5.17 (S18) - change log + coverage report (both are .box blocks at the end of #geCard, after #rwBox/#geIO)
+- Change log: store 'glog' = [{d ISO, s set, e entry label, t text}], max GLOG_MAX=200 (oldest dropped); in backup (data.glog, merged by content, sorted, trimmed). Written centrally by glexSet(name, arr): glogDiff(name, old, new) compares entries by id on raw, wrong, correct, lang, type, note, from, to, rules (rawCh excluded on purpose) -> lines "added: ...", "deleted", "field: old -> new". So editor, delete, clear, import (all conflict modes), undo import, convert all, icPick/cxAdd all log without extra hooks. One call writes max GLOG_PER_CALL=60 lines + one "... N more changes not listed" line. UI #glBox: #glList (newest first), #glInfo, glExport() (.txt "glossary-log-<stamp>.txt"), glClear() (confirm). After an import the box opens (this is the import diff). glRender(), glogGet(), glogWrite().
+- Coverage: #cvBox: #cvSrc (audit|preview), #cvView (all|unused|used), cvBuild(), cvRender(), cvExport() (CSV). Source = auLast (audit; T[k].ch = {chapterNo or '?': count} added to glossaryAudit) or lastScan (Preview/find-only; per chapter from results[].counts + chNo). Entry -> pairs: entriesToPairs([entry]) lines, left side compared to the source pair find text (exact), so honorific expansions count. Status per entry: used | unused | not checked (its pair is not in the audited pairs) | no pair (no wrong form). Info line also counts audited pairs that do not come from entries. Partial source (Stop) is flagged. Var cvLast.
+- Not done: log has no per-user undo/redo; coverage does not scan, it only reads the last audit/preview; pairs edited by hand in #pairs are compared by exact find text.
+- PLAN COMPLETE (S1-S18). Remaining ideas are in section 8 (parked) and the "Not done" lines above.
 
 3. KEY DATA SHAPES (v4.8, keep working)
 - Pairs text in textarea #pairs: lines `wrong => correct`; `#` = comment; variants on left: `a | b => c` (space-pipe-space, longest wins); no `=>` allowed only in Find-only (#fo).
@@ -198,27 +212,27 @@ PHASE E - Raw chapters as a guide (needs raw Docs in Drive)
     Goal: raw folders per novel + raw term finder.
     Do: Settings: map novel -> raw folder ID (profile-like, stored 'rawmap', in backup); fn rawDocsFor(novel) lists raw docs and maps by chNo; "Find raw term" scans raw docs (textPass) for entry.raw and stores entry.rawCh=[chapter numbers] (cache with date); show as range list "1-5, 9, 14-20".
     Checks: chapter mapping with mismatched numbering reported; Stop works; cache survives reload.
-[ ] S14 (v5.13) MODIFY M ~35%  (dep S13,S10)
+[x] S14 (v5.13) MODIFY M ~35%  DONE  (dep S13,S10)
     Goal: apply a pair only where the raw term appears.
     Do: entry switch "only where raw appears"; scan filters per pair using entry.rawCh by chNo of the translated doc; Preview shows "skipped N docs (raw term absent)"; warns when rawCh cache is missing/old.
     Checks: two entries same wrong term, different chapters; no effect when switch off.
 
 PHASE F - Translate a raw line without AI
-[ ] S15 (v5.14) BUILD M ~40%  (dep S1)
+[x] S15 (v5.14) BUILD M ~40%  DONE  (dep S1)
     Goal: raw line helper A (glossary based).
     Do: new card "Raw line helper": paste a raw line (JP/KR/CN/RU); segment by longest-match against entry.raw (all entries, language-filtered); for CJK gaps use Intl.Segmenter(lang,{granularity:'word'}); output (1) token table raw -> correct / ? (2) "glossed line": raw order with matched terms replaced by the entry's correct term, unknown tokens kept raw in [brackets]; (3) copy buttons. Label "approximate - dictionary substitution, not real translation".
     Checks: overlapping terms prefer longest; no entries -> helpful empty state; works offline.
-[ ] S16 (v5.15) BUILD M ~40%  (dep S15,S6)
+[x] S16 (v5.15) BUILD M ~40%  DONE  (dep S15,S6)
     Goal: raw line helper B (rule transliteration + honorifics).
     Do: transliterators: hiragana/katakana -> Hepburn (macrons, youon, sokuon, long vowel mark), Hangul -> Revised Romanization (jamo arithmetic), Cyrillic -> Latin (BGN-like); optional user-imported pinyin dictionary (TSV hanzi<TAB>pinyin, stored 'pydict', in backup; no built-in Chinese dictionary); unknown tokens show romanization under the raw; honorific rules from S6 applied to matched names; output "romanized line".
     Checks: node unit table for kana/hangul/cyrillic samples; hanzi without dict stay raw; size of file grows < 25 KB.
-[ ] S17 (v5.16) BUILD M ~40%  (dep S13,S15)
+[x] S17 (v5.16) BUILD M ~40%  DONE  (dep S13,S15)
     Goal: side-by-side raw check from review.
     Do: in review match row add "Raw" button: finds raw doc of the same chapter (rawmap + chNo), takes the paragraph at approx same relative position (index ratio, widened +/-1 paragraph), shows raw text with S15/S16 gloss under it; label "approximate alignment"; cache raw doc per session.
     Checks: missing raw doc message; one Docs read per chapter (cached); 390px layout.
 
 PHASE G - Reports and maintenance
-[ ] S18 (v5.17) BUILD M ~35%  (dep S7,S1)
+[x] S18 (v5.17) BUILD M ~35%  DONE  (dep S7,S1)
     Goal: coverage report + change log/diff.
     Do: coverage: entries used / unused and counts per chapter from the last audit or preview; glossary change log (store 'glog', max 200 lines: date, entry, field old->new) written by S2/S3 editors; diff view when importing; export log .txt.
     Checks: log trimmed at max; unused list matches audit.
@@ -233,9 +247,15 @@ PHASE G - Reports and maintenance
 - Playwright with mocked Google APIs was used in v4.x (suites not in this zip). For new steps, at minimum: node --check on extracted <script>, node unit tests for pure functions (smartPattern, entriesToPairs, transliterators), one mocked-DOM smoke test if Playwright is available.
 
 10. NEXT-CHAT KICKOFF LINE (copy exactly, change the step id each time)
-"Read HANDOFF.txt (uploaded). Do ONLY step S14 (next unchecked step). Patch index.html only, output changed files only, one step per chat, stop at 85% session (hard stop 90%), tick [x] and add CHANGELOG."
+"Read HANDOFF.txt (uploaded). Do ONLY the step the user names (the S1-S18 plan is finished; check section 8 and the "Not done" notes). Patch index.html only, output changed files only, one step per chat, stop at 85% session (hard stop 90%), tick [x] and add CHANGELOG."
 
 11. CHANGELOG
+v5.17 (S18) 2026-11-06: glossary change log (store glog, max 200, backup, export .txt, import diff via log lines, written from glexSet) + coverage report (used/unused entries with chapters from last audit or preview, CSV); audit now records counts per chapter. Tests: node --check, no duplicate ids, Playwright mocked Docs 360+1280 light+dark (add/edit/delete lines, 60-line cap per call, trim, coverage used/unused/no pair, chapters 3-6, preview source, empty-source message, no overflow, 0 JS errors). NOT tested: real Docs, backup file round trip of glog in the UI.
+v5.16 (S17) 2026-11-06: "Raw" button on review/preview lines shows the raw paragraph of the same chapter (rawmap + chNo, paragraph index ratio +/-1, cached per session) with gloss and romanized line. Tests: Playwright mocked Docs 360+1280 light+dark (button only with linked raw folder, alignment 4 of 10, toggle, 1 raw read), node --check. NOT tested: real Drive/Docs.
+v5.15 (S16) 2026-11-06: rule romanization: kana -> Hepburn (macrons option), Hangul -> Revised Romanization, Cyrillic -> BGN-like, optional pinyin dictionary import (store pydict, backup), honorific rules applied to names with the flag. Tests: node unit table (28 kana/hangul/cyrillic/pinyin cases), Playwright 360+1280 light+dark, 0 JS errors.
+v5.14 (S15) 2026-11-06: card "Raw line helper": longest-match glossary substitution, word table, glossed line, romanized line, copy buttons, empty-state hint, offline. Tests: Playwright (JA/KO/RU/ZH lines, honorific drop/keep/translate), no overflow.
+v5.13 (S14) 2026-11-06: entry switch "Only where raw appears" -> pair suffix "rc" from entry.rawCh; scan/audit skip docs where the raw term is absent; summary/report/audit counts; warnings for missing or old (>30 days) raw cache. Tests: Playwright mocked Docs (rc "4, 7-8" -> files 4,7,8 and 7 docs skipped; no key = no effect; "none"; entry round trip; editor save/clear), node --check, no duplicate ids. NOT tested: real Docs.
+S14-S17 built in one chat at the user's request (overrides the one-step rule for this chat only).
 v5.12 (S13) 2026-11-06: raw folder link per novel (store rawmap, backup), "Find raw terms" scan stores entry.rawCh with chapter range list, mapping report vs translated chapters, cache survives reload, Stop keeps stored data. Tests: node --check, no duplicate ids, Playwright mocked Drive/Docs 360+1280 light+dark (JP/CN raw, ranges 1, 3-4, mismatch 'Only in raw: 7', file without number, reload, Stop, 0 writes, 0 JS errors). NOT tested: real Drive.
 v5.11 (S12) 2026-11-06: per-pair/entry conditions: only in dialogue (quotes), only near / not near a word within N chars; skipped counts in Preview/report/audit. Tests: node unit (quote spans, apostrophes, near/far windows), Playwright (Preview == audit, entry round trip, validation).
 S12+S13 built in one chat at the user's request.

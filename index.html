@@ -148,6 +148,9 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
 .geed textarea{min-height:90px}
 .geed label{font-size:13px;font-weight:600;color:var(--mut);display:grid;gap:4px}
 .gerev{margin:0;padding:8px 10px;border-radius:10px;background:var(--acs);font-size:14px;word-break:break-word}
+.rawbox{border:1px solid var(--bd);border-radius:12px;background:var(--sf2);padding:8px 10px;font-size:14px;max-height:280px;overflow:auto;overflow-wrap:anywhere;white-space:pre-wrap;margin-top:6px}
+.rawp{padding:4px 0;border-bottom:1px solid var(--bd)}.rawp:last-child{border-bottom:0}.rawc{background:var(--acs);border-radius:8px;padding:4px 6px}
+.rawb{margin-left:8px}
 @media(min-width:980px){
 .app{padding-bottom:40px}
 .cols{grid-template-columns:minmax(0,5fr) minmax(0,6fr);align-items:start}
@@ -164,7 +167,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
 <body>
 <div class="app">
 <header class="top">
-  <div class="t"><h1>Bulk Replace<span class="ver">v5.12</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
+  <div class="t"><h1>Bulk Replace<span class="ver">v5.17</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
   <button id="hbtn" onclick="openHistory()" title="History of replace runs">History</button>
   <button class="icon" id="thm" onclick="cycleTheme()" aria-label="Change theme" title="Change theme">Auto</button>
 </header>
@@ -341,6 +344,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
         <label>Type<select id="geType"><option value="name">Name</option><option value="skill">Skill</option><option value="place">Place</option><option value="title">Title</option><option value="other">Other</option></select></label>
       </div>
       <label>Note (optional)<input type="text" id="geNote" autocomplete="off"></label>
+      <label class="sw"><input type="checkbox" id="geRawOnly">Only where raw appears (apply this pair only in chapters where the raw term was found; run "Find raw terms" first)</label>
       <label class="sw"><input type="checkbox" id="geHon">Has honorific (apply the honorific rules from Settings for this language)</label>
       <label class="sw"><input type="checkbox" id="geSwap">Swap name order (a 2-word wrong form such as Li Wei also finds Wei Li)</label>
       <div class="row">
@@ -412,6 +416,56 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
           <button onclick="geConvertAll()">Convert all saved glossaries</button>
         </div>
       </div>
+    </details>
+    <details class="box" id="cvBox">
+      <summary>Coverage report</summary>
+      <p class="hint">Shows which entries of this set were found (used) or not (unused), with the chapters. It reads the result of the last Glossary audit or Preview, so run one first. Nothing is scanned here.</p>
+      <div class="row">
+        <label>Source<select id="cvSrc"><option value="audit">Last audit</option><option value="preview">Last preview</option></select></label>
+        <label>Show<select id="cvView" onchange="cvRender()"><option value="all">All entries</option><option value="unused">Unused / not checked</option><option value="used">Used only</option></select></label>
+      </div>
+      <div class="row"><button class="sm" onclick="cvBuild()">Build coverage</button><button class="sm" onclick="cvExport()">Export CSV</button></div>
+      <p class="hint" id="cvInfo"></p>
+      <div class="exl" id="cvList"></div>
+    </details>
+    <details class="box" id="glBox">
+      <summary>Change log</summary>
+      <p class="hint">Every change to entries (add, edit, delete, import, merge, undo) is logged here, newest first. Imports show up as added or changed lines. Kept on this device (last 200 lines) and in the backup.</p>
+      <div class="row"><button class="sm" onclick="glExport()">Export .txt</button><button class="sm" onclick="glClear()">Clear log</button></div>
+      <p class="hint" id="glInfo"></p>
+      <div class="exl" id="glList"></div>
+    </details>
+  </div>
+</details>
+
+<details class="card" id="rlCard">
+  <summary>Raw line helper</summary>
+  <div class="bd">
+    <p class="hint">Paste a raw line. Known terms come from the Glossary entries of the set above (longest match first); other words are romanized by rule. Approximate: dictionary substitution and rule romanization, not real translation. Works offline.</p>
+    <textarea id="rlIn" placeholder="Paste a raw line (Japanese, Korean, Chinese, Russian)" autocomplete="off"></textarea>
+    <div class="row">
+      <label>Language<select id="rlLang"><option value="">Auto-detect</option><option value="ja">Japanese</option><option value="ko">Korean</option><option value="zh">Chinese</option><option value="ru">Russian</option></select></label>
+      <label class="sw"><input type="checkbox" id="rlMac" checked>Macrons (ō ū) for Japanese</label>
+    </div>
+    <button class="pri" onclick="rlRun()">Gloss and romanize</button>
+    <p class="hint" id="rlInfo"></p>
+    <div id="rlOut" hidden>
+      <p class="hint"><b>Words</b></p>
+      <div class="exl" id="rlTab"></div>
+      <p class="hint"><b>Glossed line</b> (raw order, matched terms replaced, unknown words in [brackets])</p>
+      <div class="rawbox" id="rlGl"></div>
+      <button class="sm" onclick="rlCopy('rlGl')">Copy glossed line</button>
+      <p class="hint"><b>Romanized line</b> (unknown words romanized, honorific rules applied to names with "Has honorific")</p>
+      <div class="rawbox" id="rlRo"></div>
+      <button class="sm" onclick="rlCopy('rlRo')">Copy romanized line</button>
+    </div>
+    <details class="box" id="pyBox">
+      <summary>Chinese dictionary (optional)</summary>
+      <p class="hint">No Chinese dictionary is built in. Import a TSV file (one line: characters, TAB, pinyin) to romanize Chinese words. Without it Chinese characters stay raw. Stored on this device and included in the backup.</p>
+      <input type="file" id="pyFile" accept=".tsv,.txt,.csv,text/plain">
+      <textarea id="pyTxt" placeholder="Or paste TSV lines here"></textarea>
+      <div class="row"><button class="sm" onclick="pyImport($('pyTxt').value, 'the pasted text'); $('pyTxt').value = ''">Import pasted lines</button><button class="sm" onclick="pyClear()">Clear dictionary</button></div>
+      <p class="hint" id="pyInfo"></p>
     </details>
   </div>
 </details>
@@ -1034,6 +1088,7 @@ function parseMeta(s) {
     q.ctx = o.ctx;
     if (o.ctx !== 'dlg') { q.cw = o.cw.trim(); const c = ni(o.cn); q.cn = c >= 1 && c <= 500 ? c : 50; }
   }
+  if (typeof o.rc === 'string' && (o.rc === 'none' || /^[\d\s,\-]{1,3000}$/.test(o.rc))) q.rc = o.rc.trim();
   const has = Object.keys(q).length > 0;
   return {repl: s.slice(0, m.index).trimEnd(), opts: has ? q : null, meta: has ? ' @' + JSON.stringify(q) : ''};
 }
@@ -1045,6 +1100,7 @@ function pairTag(p) {
   if (o.from != null || o.to != null) t.push('ch ' + (o.from != null ? o.from : '..') + '-' + (o.to != null ? o.to : '..'));
   if (o.mode) t.push(o.mode === 'word' ? 'whole word' : 'contains');
   if (o.keep != null) t.push(o.keep ? 'keep case' : 'no keep case');
+  if (o.rc) t.push(o.rc === 'none' ? 'raw term only (no raw chapters cached)' : 'raw term only, ch ' + (o.rc.length > 40 ? o.rc.slice(0, 37) + '...' : o.rc));
   if (o.ctx) t.push(o.ctx === 'dlg' ? 'only in dialogue' : (o.ctx === 'near' ? 'near "' : 'not near "') + (o.cw || '') + (o.ctx === 'dlg' ? '' : '" (' + o.cn + ')'));
   }
   return t.length ? ' [' + t.join('; ') + ']' : '';
@@ -1071,6 +1127,18 @@ function pairIn(p, n) {
   const o = p.opts; if (!o || (o.from == null && o.to == null)) return true;
   if (n === null) return false;
   return (o.from == null || n >= o.from) && (o.to == null || n <= o.to);
+}
+/* v5.13: raw-term filter, "rc" = range list from entry.rawCh ("1-5, 9"); "none" = not cached = never applies */
+function rcParse(s) {
+  const out = [];
+  String(s || '').split(',').forEach(x => { const m = x.trim().match(/^(\d+)(?:\s*-\s*(\d+))?$/); if (m) out.push([+m[1], m[2] === undefined ? +m[1] : +m[2]]); });
+  return out;
+}
+function pairRcOk(p, n) {
+  const o = p.opts; if (!o || !o.rc) return true;
+  if (n === null || o.rc === 'none') return false;
+  if (!p.rcR) p.rcR = rcParse(o.rc);
+  return p.rcR.some(x => n >= x[0] && n <= x[1]);
 }
 function pairKeep(p, kc) { return p.opts && p.opts.keep != null ? p.opts.keep : kc; }
 function parsePairs() {
@@ -1177,7 +1245,8 @@ async function scan() {
   const matchCase = $('c').checked;
   const results = [], dre = dntRe();
   const totals = pairs.map(() => 0), fileCounts = pairs.map(() => 0);
-  let dntSkip = 0, ctxSkip = 0;
+  let dntSkip = 0, ctxSkip = 0, rcDocs = 0;
+  const hasRc = pairs.some(q => q.opts && q.opts.rc);
   let totalMatches = 0, stopped = false, scanned = docs.length;
   for (let i = 0; i < docs.length; i++) {
     if (stopFlag) { stopped = true; scanned = i; stopFlag = false; break; }
@@ -1186,9 +1255,10 @@ async function scan() {
     const paras = [];
     collectParas(d.body && d.body.content, paras);
     const counts = pairs.map(() => 0), matches = [];
-    const nn = chNo(docs[i].name), okK = pairs.map(q => pairIn(q, nn));
-    for (const p of paras) {
-      const dr = dntRanges(p.text, dre); let sp = null;
+    const nn = chNo(docs[i].name), okK = pairs.map(q => pairIn(q, nn) && pairRcOk(q, nn));
+    if (hasRc && pairs.some(q => pairIn(q, nn) && !pairRcOk(q, nn))) rcDocs++;
+    for (let pi = 0; pi < paras.length; pi++) {
+      const p = paras[pi], dr = dntRanges(p.text, dre); let sp = null;
       for (let k = 0; k < pairs.length; k++) {
         if (!okK[k]) continue;
         const re = res[k];
@@ -1203,7 +1273,7 @@ async function scan() {
           const ds = toDoc(p.segs, a), last = toDoc(p.segs, b - 1);
           const de = last === null ? null : last + 1;
           const ok = ds !== null && de !== null && de - ds === b - a;
-          matches.push({k, text: p.text, a, b, ds, de, ok, sel: ok, rep: fo ? null : keepCase(m[0], mode === 're' ? expandRepl(pairs[k].repl, m) : pairs[k].repl, pairKeep(pairs[k], kc))});
+          matches.push({k, pi, text: p.text, a, b, ds, de, ok, sel: ok, rep: fo ? null : keepCase(m[0], mode === 're' ? expandRepl(pairs[k].repl, m) : pairs[k].repl, pairKeep(pairs[k], kc))});
           counts[k]++;
           if (!m[0].length) re.lastIndex++;
         }
@@ -1211,14 +1281,14 @@ async function scan() {
     }
     const n = matches.length;
     if (n) {
-      results.push({id: docs[i].id, name: docs[i].name, rev: d.revisionId, n, counts, matches});
+      results.push({id: docs[i].id, name: docs[i].name, nov: docs[i].nov, np: paras.length, rev: d.revisionId, n, counts, matches});
       totalMatches += n;
       counts.forEach((c, k) => { totals[k] += c; if (c) fileCounts[k]++; });
     }
     await sleep(readDelay());
   }
   if (stopped && !scanned) { setStatus('Stopped.'); return null; }
-  return {docs: scanned, totalDocs: docs.length, stopped, dnt: dntSkip, ctx: ctxSkip, dntOn: !!dre, keep: kc, results, totalMatches, pairs, totals, fileCounts, matchCase, mode, flex: $('flex').checked, smart: $('smart').checked && mode !== 're', fo,
+  return {docs: scanned, totalDocs: docs.length, stopped, dnt: dntSkip, ctx: ctxSkip, rcDocs, rcOn: hasRc, dntOn: !!dre, keep: kc, results, totalMatches, pairs, totals, fileCounts, matchCase, mode, flex: $('flex').checked, smart: $('smart').checked && mode !== 're', fo,
     folderNames: scoped ? ['(files from ' + (sc === 'last' ? 'the last run' : 'the failed list') + ')'] : folders.map(f => f.path), rec, nf, rangeInfo};
 }
 
@@ -1234,7 +1304,7 @@ function ctxParts(m, n) {
   return {pre, term, post};
 }
 
-function buildMatch(m, pair, mode, multi) {
+function buildMatch(m, pair, mode, multi, f) {
   const wrap = el('div');
   wrap.className = 'ln';
   if (mode === 'review') {
@@ -1248,6 +1318,7 @@ function buildMatch(m, pair, mode, multi) {
   const {pre, term, post} = ctxParts(m);
   if (m.rep === null) wrap.append(pre, el('mark', term), post);
   else wrap.append(pre, el('del', term), el('ins', m.rep || '(deleted)'), post);
+  if (f && f.nov && m.pi !== undefined && !m.hist && Object.keys(rwGet()).length) { const rb = el('button', 'Raw'); rb.className = 'sm rawb'; rb.title = 'Show the raw paragraph (approximate alignment)'; rb.onclick = e => { e.preventDefault(); rawShow(f, m, wrap, rb); }; wrap.append(rb); }
   if (mode === 'review' && !m.ok) { const w = el('div', 'Complex spot (formatting or an image in the middle), so it cannot be selected on its own. Use "Replace all" for it.'); w.className = 'warn'; wrap.append(w); }
   return wrap;
 }
@@ -1359,7 +1430,7 @@ function buildFile(f, ms, open, multi) {
   const fill = () => {
     if (more.parentNode) more.remove();
     const end = Math.min(ms.length, done + LINES);
-    for (; done < end; done++) d.append(buildMatch(ms[done], V.r.pairs[ms[done].k], V.mode, multi));
+    for (; done < end; done++) d.append(buildMatch(ms[done], V.r.pairs[ms[done].k], V.mode, multi, f));
     if (done < ms.length) { more.textContent = `Show more lines (${ms.length - done} left)`; d.append(more); }
   };
   more.onclick = e => { e.preventDefault(); fill(); };
@@ -1511,6 +1582,7 @@ function buildReport(r, label, rows, note) {
   if (r.rangeInfo) L.push(r.rangeInfo);
   if (r.dntOn) L.push('Do-not-translate: ' + (r.dnt || 0) + ' matches skipped');
   if (r.ctx) L.push('Context conditions: ' + r.ctx + ' matches skipped');
+  if (r.rcOn) L.push('Raw-term filter: ' + r.rcDocs + ' docs skipped for at least one pair (raw term absent)');
   L.push(`Docs checked: ${r.docs}, files with matches: ${r.results.length}, matches: ${r.totalMatches}`);
   if (note) L.push(note);
   L.push('');
@@ -1563,7 +1635,7 @@ async function preview() {
     lastScan = r;
     fillPairSel(r);
     showSummary(
-      `${r.fo ? 'Find only' : 'Preview'}: ${r.docs} docs checked, ${r.totalMatches} matches in ${r.results.length} files.${r.fo ? '' : ' Nothing has been changed yet.'}` + (r.dnt ? ` ${r.dnt} matches skipped (inside Do-not-translate terms).` : '') + (r.ctx ? ` ${r.ctx} matches skipped (context condition not met).` : '') + (r.stopped ? ` The scan was stopped early (${r.docs} of ${r.totalDocs} docs checked).` : '') +
+      `${r.fo ? 'Find only' : 'Preview'}: ${r.docs} docs checked, ${r.totalMatches} matches in ${r.results.length} files.${r.fo ? '' : ' Nothing has been changed yet.'}` + (r.dnt ? ` ${r.dnt} matches skipped (inside Do-not-translate terms).` : '') + (r.ctx ? ` ${r.ctx} matches skipped (context condition not met).` : '') + (r.rcOn ? ` Skipped ${r.rcDocs} docs for at least one pair (raw term absent).` : '') + (r.stopped ? ` The scan was stopped early (${r.docs} of ${r.totalDocs} docs checked).` : '') +
       (r.rangeInfo ? '\n' + r.rangeInfo : ''),
       r.pairs.map((p, k) => `${k + 1}) ${r.fo ? p.find : p.find + ' => ' + p.repl}${pairTag(p)} : ${r.totals[k]} matches, ${r.fileCounts[k]} files`)
     );
@@ -1752,7 +1824,7 @@ function exportBackup() {
   let opts = {}, sel = [];
   try { opts = JSON.parse(store.get('opts', '{}')) || {}; } catch (e) {}
   try { sel = JSON.parse(store.get('sel', '[]')) || []; } catch (e) {}
-  const data = {cid: CLIENT_ID, root: ROOT_ID, draft: $('pairs').value, gloss: gloss(), opts, sel, selp: Object.fromEntries(selMap), profiles: profs(), glex: glexAll(), honor: honorAll(), rawmap: rwGet(), rawinfo: rwInfoGet(), dnt: dntGet(), cxstop: cxStopText(), theme: store.get('theme', 'auto')};
+  const data = {cid: CLIENT_ID, root: ROOT_ID, draft: $('pairs').value, gloss: gloss(), opts, sel, selp: Object.fromEntries(selMap), profiles: profs(), glex: glexAll(), honor: honorAll(), rawmap: rwGet(), rawinfo: rwInfoGet(), pydict: store.get('pydict', ''), glog: glogGet(), dnt: dntGet(), cxstop: cxStopText(), theme: store.get('theme', 'auto')};
   if ($('bkHist').checked) data.hist = getHist();
   const doc = {app: 'bulk-replace', version: 5, date: new Date().toISOString(), data};
   downloadFile('bulk-replace-backup-' + stamp() + '.json', JSON.stringify(doc, null, 2), 'application/json');
@@ -1819,6 +1891,8 @@ async function importBackup(inp) {
     if (typeof d.cxstop === 'string') store.set('cxstop', d.cxstop.slice(0, 20000));
     if (d.rawmap && typeof d.rawmap === 'object' && !Array.isArray(d.rawmap)) { const M = rwGet(); for (const k of Object.keys(d.rawmap)) if (typeof d.rawmap[k] === 'string') M[k] = d.rawmap[k]; store.set('rawmap', JSON.stringify(M)); }
     if (d.rawinfo && typeof d.rawinfo === 'object' && !Array.isArray(d.rawinfo)) store.set('rawinfo', JSON.stringify(Object.assign(rwInfoGet(), d.rawinfo)));
+    if (typeof d.pydict === 'string' && d.pydict) { const o = store.get('pydict', ''); store.set('pydict', (o ? o + '\n' : '') + d.pydict.slice(0, 3000000)); pyInfo(); }
+    if (Array.isArray(d.glog)) { const m = new Map(); glogGet().concat(d.glog.filter(x => x && typeof x.d === 'string' && typeof x.t === 'string' && typeof x.s === 'string').map(x => ({d: x.d, s: x.s, e: String(x.e || ''), t: x.t}))).forEach(x => m.set(x.d + x.s + x.e + x.t, x)); store.set('glog', JSON.stringify([...m.values()].sort((a, b) => a.d < b.d ? -1 : 1).slice(-GLOG_MAX))); glRender(); }
     cxLoadLists();
     refreshGloss();
     setStatus(`Backup restored (${names.length} glossaries merged` + (histN ? `, ${histN} history runs added` : '') + (exN ? `, ${exN} entry sets merged` : '') + `).` + (acct ? ' Settings changed, so reload the novel list.' : '') + (ok ? '' : ' Some data could not be saved (browser storage is blocked).'));
@@ -1916,6 +1990,12 @@ function pairWarnings() {
   pairs.forEach((p, i) => {
     const n = i + 1;
     if (mode === 're') { try { buildRe(p); } catch (e) { W.push(`Pair ${n}: invalid pattern (${e.message}).`); } return; }
+    if (p.opts && p.opts.rc) {
+      const inf = rwInfoGet()[geName()], age = inf && inf.date ? Math.floor((Date.now() - new Date(inf.date)) / 864e5) : null;
+      if (p.opts.rc === 'none') W.push(`Pair ${n}: "only where raw appears" is on but no raw chapters are cached for this entry, so it is skipped everywhere (run Find raw terms, then Use as pairs again).`);
+      else if (age === null) W.push(`Pair ${n}: the raw chapter list has no scan date for this set; it may be out of date.`);
+      else if (age > 30) W.push(`Pair ${n}: the raw chapter list was scanned ${age} days ago; run Find raw terms again if chapters changed.`);
+    }
     if (pairForced(p)) W.push(`Pair ${n}: "${p.find}" is short or a common word, so it is matched as a whole word only (add @{"mode":"lit"} after the replacement to match inside words).`);
     if (dntGet().some(d => p.find.split(' | ').some(x => x.trim().toLowerCase() === d.toLowerCase()))) W.push(`Pair ${n}: "${p.find}" is on the Do-not-translate list, so it will never be replaced.`);
     if (p.find.length < 3) W.push(`Pair ${n}: "${p.find}" is very short and may also match inside other words` + (mode === 'lit' ? ' (try the Whole word mode).' : '.'));
@@ -2397,7 +2477,7 @@ updateFolderSel();
 /* store 'glex' = {setName: [entry]}; entry = {id, raw, wrong[], correct, lang, type, note, from, to, rawCh[], rules{}} */
 const GE_LANGS = ['ja', 'ko', 'zh', 'ru', 'en', 'other'], GE_TYPES = ['name', 'skill', 'place', 'title', 'other'];
 function glexAll() { try { const o = JSON.parse(store.get('glex', '{}')); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch (e) { return {}; } }
-function glexSet(name, arr) { const G = glexAll(); G[name] = arr; return store.set('glex', JSON.stringify(G)); }
+function glexSet(name, arr) { const G = glexAll(), old = G[name]; G[name] = arr; const ok = store.set('glex', JSON.stringify(G)); if (ok && typeof glogWrite === 'function') glogWrite(name, Array.isArray(old) ? old : [], arr); return ok; }
 function entriesGet(name) { const a = glexAll()[name]; return Array.isArray(a) ? a : []; }
 let _geId = 0;
 function entryNew(o) {
@@ -2430,6 +2510,7 @@ function entryMeta(e) {
   if (r.mode === 'lit' || r.mode === 'word') q.mode = r.mode;
   if (r.keep === true || r.keep === false) q.keep = r.keep;
   if (r.ctx === 'dlg' || ((r.ctx === 'near' || r.ctx === 'far') && r.cw)) { q.ctx = r.ctx; if (r.ctx !== 'dlg') { q.cw = r.cw; q.cn = r.cn || 50; } }
+  if (r.rawOnly) q.rc = e.rawCh && e.rawCh.length ? rangeList(e.rawCh) : 'none';
   return Object.keys(q).length ? ' @' + JSON.stringify(q) : '';
 }
 function entriesToPairs(arr, hon) {
@@ -2475,7 +2556,8 @@ function pairsToEntries(text) {
     seen.add(left);
     const rules = {}; if (o.mode) rules.mode = o.mode; if (o.keep != null) rules.keep = o.keep;
     if (o.ctx) { rules.ctx = o.ctx; if (o.cw) { rules.cw = o.cw; rules.cn = o.cn; } }
-    out.push(entryNew({wrong: left.split(' | ').map(x => x.trim()).filter(Boolean), correct, from: o.from, to: o.to, rules}));
+    let rawCh = []; if (o.rc) { rules.rawOnly = true; rcParse(o.rc).forEach(x => { for (let n = x[0]; n <= x[1] && rawCh.length < 5000; n++) rawCh.push(n); }); }
+    out.push(entryNew({rawCh, wrong: left.split(' | ').map(x => x.trim()).filter(Boolean), correct, from: o.from, to: o.to, rules}));
   }
   return out;
 }
@@ -2552,7 +2634,7 @@ function geOpen(id) {
   $('geRaw').value = e ? e.raw : ''; $('geWrong').value = e ? e.wrong.join('\n') : '';
   $('geCor').value = e ? e.correct : ''; $('geLang').value = e ? e.lang : 'ja';
   $('geType').value = e ? e.type : 'name'; $('geNote').value = e ? e.note : '';
-  $('geSwap').checked = !!(e && e.rules && e.rules.swap); $('geHon').checked = !!(e && e.rules && e.rules.honor);
+  $('geSwap').checked = !!(e && e.rules && e.rules.swap); $('geHon').checked = !!(e && e.rules && e.rules.honor); $('geRawOnly').checked = !!(e && e.rules && e.rules.rawOnly);
   $('geFrom').value = e && e.from != null ? e.from : ''; $('geTo').value = e && e.to != null ? e.to : '';
   $('geMode').value = e && e.rules && e.rules.mode ? e.rules.mode : ''; $('geKeep').value = e && e.rules && e.rules.keep != null ? (e.rules.keep ? 'on' : 'off') : '';
   $('geCap').value = e && e.rules && e.rules.cap ? e.rules.cap : '';
@@ -2582,6 +2664,8 @@ function geSave() {
   const i = geEditId ? list.findIndex(x => x.id === geEditId) : -1;
   const rl = Object.assign({}, i >= 0 ? list[i].rules : {}); if ($('geSwap').checked) rl.swap = true; else delete rl.swap;
   if ($('geHon').checked) rl.honor = true; else delete rl.honor;
+  if ($('geRawOnly').checked) rl.rawOnly = true; else delete rl.rawOnly;
+  if (rl.rawOnly && !raw) return setStatus('"Only where raw appears" needs a raw term.');
   if (cx) { rl.ctx = cx; if (cx !== 'dlg') { rl.cw = cw; rl.cn = cnv >= 1 && cnv <= 500 ? cnv : 50; } else { delete rl.cw; delete rl.cn; } } else { delete rl.ctx; delete rl.cw; delete rl.cn; }
   if ($('geCap').value) rl.cap = $('geCap').value; else delete rl.cap;
   if ($('geMode').value) rl.mode = $('geMode').value; else delete rl.mode;
@@ -2728,7 +2812,7 @@ function geImportText2(text, label) {
     const res = /^\s*[\[{]/.test(String(text).replace(/^\uFEFF/, '')) ? geParseJson(text) : geRowsToEntries(csvParse(text, geDelim(text)));
     if (!res.list.length) throw new Error('no usable rows found (each row needs a wrong form or a raw term).');
     const name = geName(), r = geApply(name, res.list, $('geConf').value);
-    setStatus(`Imported ${label} into "${name}": ${r.added} added, ${r.merged} merged, ${r.over} overwritten, ${r.skipped} skipped` + (res.ignored ? `, ${res.ignored} rows ignored` : '') + '.');
+    $('glBox').open = true; setStatus(`Imported ${label} into "${name}": ${r.added} added, ${r.merged} merged, ${r.over} overwritten, ${r.skipped} skipped` + (res.ignored ? `, ${res.ignored} rows ignored` : '') + '.');
   } catch (e) { setStatus('Import failed: ' + e.message); }
 }
 async function geImportFile(inp) {
@@ -2873,12 +2957,13 @@ async function glossaryAudit() {
   try {
     const g = await gatherDocs();
     if (!g) return;
-    const T = pairs.map((p, k) => ({k, find: p.find, repl: p.repl, meta: p.meta || '', n: 0, files: 0, v: info[k].vs.map(() => 0), other: 0, nov: {}}));
-    const N = {}, dre = dntRe(); let dntSk = 0, ctxSk = 0;
+    const T = pairs.map((p, k) => ({k, find: p.find, repl: p.repl, meta: p.meta || '', ch: {}, n: 0, files: 0, v: info[k].vs.map(() => 0), other: 0, nov: {}}));
+    const N = {}, dre = dntRe(); let dntSk = 0, ctxSk = 0, rcSk = 0;
     const pass = await textPass(g.docs, async (doc, paras) => {
       const nv = doc.nov || '(selected files)', nr = N[nv] = N[nv] || {docs: 0, files: 0, n: 0, terms: new Set()};
       nr.docs++;
-      const c = pairs.map(() => 0), nn = chNo(doc.name), okK = pairs.map(q => pairIn(q, nn));
+      const c = pairs.map(() => 0), nn = chNo(doc.name), okK = pairs.map(q => pairIn(q, nn) && pairRcOk(q, nn));
+      if (pairs.some(q => pairIn(q, nn) && !pairRcOk(q, nn))) rcSk++;
       for (const para of paras) for (let k = 0; k < pairs.length; k++) {
         if (!okK[k]) continue;
         const re = res[k]; re.lastIndex = 0;
@@ -2898,14 +2983,14 @@ async function glossaryAudit() {
       let hit = 0;
       c.forEach((n, k) => {
         if (!n) return;
-        hit += n; T[k].n += n; T[k].files++;
+        hit += n; T[k].n += n; T[k].files++; T[k].ch[nn === null ? '?' : nn] = (T[k].ch[nn === null ? '?' : nn] || 0) + n;
         const x = T[k].nov[nv] = T[k].nov[nv] || {n: 0, files: 0}; x.n += n; x.files++;
         nr.terms.add(k);
       });
       if (hit) { nr.files++; nr.n += hit; }
     }, 'Audit');
     if (pass.stopped && !pass.done) { setStatus('Stopped.'); return; }
-    auLast = {T, N, dnt: dntSk, ctx: ctxSk, docs: pass.done, totalDocs: g.docs.length, stopped: pass.stopped, failed: pass.failed, mode, flex: $('flex').checked, smart: $('smart').checked && mode !== 're',
+    auLast = {T, N, dnt: dntSk, ctx: ctxSk, rc: rcSk, docs: pass.done, totalDocs: g.docs.length, stopped: pass.stopped, failed: pass.failed, mode, flex: $('flex').checked, smart: $('smart').checked && mode !== 're',
       matchCase: $('c').checked, rangeInfo: g.rangeInfo, folders: g.scoped ? ['(files from ' + (g.sc === 'last' ? 'the last run' : 'the failed list') + ')'] : g.folders.map(f => f.path), time: new Date().toLocaleString()};
     auRender();
     $('auBox').open = true;
@@ -2916,7 +3001,7 @@ async function glossaryAudit() {
 function auRender() {
   const a = auLast; if (!a) return;
   const tot = a.T.reduce((x, t) => x + t.n, 0), zero = a.T.filter(t => !t.n).length;
-  $('auInfo').textContent = (a.dnt ? `${a.dnt} matches skipped (Do-not-translate). ` : '') + (a.ctx ? `${a.ctx} matches skipped (context condition). ` : '') + `${a.docs} of ${a.totalDocs} docs checked, ${a.T.length} pairs, ${tot} matches, ${zero} pair${zero === 1 ? '' : 's'} not found.` + (a.stopped ? ' Stopped early: the counts are partial.' : '') + (a.failed.length ? ` ${a.failed.length} docs could not be read.` : '');
+  $('auInfo').textContent = (a.dnt ? `${a.dnt} matches skipped (Do-not-translate). ` : '') + (a.ctx ? `${a.ctx} matches skipped (context condition). ` : '') + (a.rc ? `${a.rc} docs skipped for at least one pair (raw term absent). ` : '') + `${a.docs} of ${a.totalDocs} docs checked, ${a.T.length} pairs, ${tot} matches, ${zero} pair${zero === 1 ? '' : 's'} not found.` + (a.stopped ? ' Stopped early: the counts are partial.' : '') + (a.failed.length ? ` ${a.failed.length} docs could not be read.` : '');
   const so = $('auSort').value, L = a.T.slice();
   if (so === 'most') L.sort((x, y) => y.n - x.n || x.k - y.k); else if (so === 'zero') L.sort((x, y) => (x.n ? 1 : 0) - (y.n ? 1 : 0) || x.k - y.k);
   const box = $('auList'); box.textContent = '';
@@ -3237,6 +3322,344 @@ async function rwRun() {
   } catch (e) { setStatus('Error: ' + e.message); }
   finally { busy = false; releaseAwake(); }
 }
+
+/* ---------- v5.14-v5.16: raw line helper (S15 glossary gloss, S16 rule romanization), S17 raw check in review. No AI, offline, approximate. ---------- */
+const HG = 'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわゐゑをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽゔ'.split('');
+const HR = 'a i u e o ka ki ku ke ko sa shi su se so ta chi tsu te to na ni nu ne no ha hi fu he ho ma mi mu me mo ya yu yo ra ri ru re ro wa i e o n ga gi gu ge go za ji zu ze zo da ji zu de do ba bi bu be bo pa pi pu pe po vu'.split(' ');
+const KANA = {}; HG.forEach((c, i) => { KANA[c] = HR[i]; });
+const KSM = {'ゃ': 'a', 'ゅ': 'u', 'ょ': 'o', 'ぁ': 'a', 'ぃ': 'i', 'ぅ': 'u', 'ぇ': 'e', 'ぉ': 'o'};
+function kanaRom(t, mac) {
+  t = t.normalize('NFKC').replace(/[\u30A1-\u30F6]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
+  if (!/^[\u3041-\u3096\u30FC]+$/.test(t)) return null;
+  const S = []; let dbl = false;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (c === 'っ') { dbl = true; continue; }
+    if (c === 'ー') { S.push({r: 'ー'}); continue; }
+    let r = KANA[c]; if (r === undefined) { r = KSM[c] || ''; }
+    const nx = t[i + 1];
+    if (KANA[c] !== undefined && nx && KSM[nx]) {
+      const v = KSM[nx], st = r.length > 1 ? r.slice(0, -1) : (c === 'う' ? 'w' : '');
+      const y = 'ゃゅょ'.includes(nx);
+      r = y ? (['sh', 'ch', 'j'].includes(st) ? st : st + 'y') + v : (st === '' && c !== 'う' ? v : st + v); i++;
+    }
+    if (dbl) { r = /^ch/.test(r) ? 't' + r : /^[a-z]/.test(r) && !/^[aiueon]/.test(r) ? r[0] + r : r; dbl = false; }
+    S.push({r});
+  }
+  let o = '';
+  S.forEach((s, i) => {
+    if (s.r === 'ー') { const m = o.match(/[aiueo]$/); o += m ? m[0] : ''; return; }
+    if (s.r === 'n' && S[i + 1] && /^[aiueoy]/.test(S[i + 1].r)) o += "n'"; else o += s.r;
+  });
+  if (mac) o = o.replace(/aa/g, 'ā').replace(/ii/g, 'ī').replace(/uu/g, 'ū').replace(/ee/g, 'ē').replace(/oo|ou/g, 'ō');
+  return o;
+}
+const HI = 'g kk n d tt r m b pp s ss  j jj ch k t p h'.split(' '), HV = 'a ae ya yae eo e yeo ye o wa wae oe yo u wo we wi yu eu ui i'.split(' ');
+const HF = ['', 'k', 'k', 'ks', 'n', 'nj', 'nh', 't', 'l', 'lk', 'lm', 'lb', 'ls', 'lt', 'lp', 'lh', 'm', 'p', 'ps', 't', 't', 'ng', 't', 't', 'k', 't', 'p', 't'];
+/* final consonant index -> [stays as final, moves to next vowel syllable as initial index] (initial index in HI order, -1 = silent) */
+const HFL = {1: ['', 0], 2: ['', 1], 3: ['k', 9], 4: ['', 2], 5: ['n', 12], 6: ['n', -1], 7: ['', 3], 8: ['', 5], 9: ['l', 0], 10: ['l', 6], 11: ['l', 7], 12: ['l', 9], 13: ['l', 16], 14: ['l', 17], 15: ['l', 18], 16: ['', 6], 17: ['', 7], 18: ['p', 9], 19: ['', 9], 20: ['', 10], 21: ['ng', -2], 22: ['', 12], 23: ['', 14], 24: ['', 15], 25: ['', 16], 26: ['', 17], 27: ['', -1]};
+function hangulRom(t) {
+  if (!/^[\uAC00-\uD7A3]+$/.test(t)) return null;
+  const Y = [...t].map(c => { const n = c.charCodeAt(0) - 0xAC00; return {l: Math.floor(n / 588), v: Math.floor(n % 588 / 28), t: n % 28}; });
+  Y.forEach((y, i) => { y.fin = HF[y.t]; y.ini = HI[y.l]; });
+  for (let i = 0; i < Y.length - 1; i++) {
+    const a = Y[i], b = Y[i + 1];
+    if (!a.t) continue;
+    if (b.l === 11 && a.t !== 21) {                       /* linking: final moves to the next vowel */
+      const f = HFL[a.t]; if (!f || f[1] === -1 && a.t !== 27) { if (f) a.fin = f[0]; continue; }
+      a.fin = f[0]; if (a.t !== 27) b.ini = f[1] >= 0 ? HI[f[1]] : '';
+      if (a.t === 27) a.fin = '';
+      continue;
+    }
+    if (a.fin === 'l' && b.l === 2 || a.fin === 'n' && b.l === 5) { a.fin = 'l'; b.ini = 'l'; continue; }
+    if (b.l === 2 || b.l === 5 || b.l === 6) {             /* stops before n/m/r become nasal; r after non-l becomes n */
+      if (a.fin === 'k') a.fin = 'ng'; else if (a.fin === 't') a.fin = 'n'; else if (a.fin === 'p') a.fin = 'm';
+    }
+    if (b.l === 5 && a.fin !== 'l') b.ini = 'n';
+  }
+  return Y.map(y => y.ini + HV[y.v] + y.fin).join('');
+}
+const CYR = {а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'yo', ж: 'zh', з: 'z', и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'kh', ц: 'ts', ч: 'ch', ш: 'sh', щ: 'shch', ъ: '"', ь: "'", ы: 'y', э: 'e', ю: 'yu', я: 'ya'};
+function cyrRom(t) {
+  if (!/^[\u0400-\u04FF]+$/.test(t)) return null;
+  let o = '';
+  [...t].forEach((c, i, a) => {
+    const lo = c.toLowerCase(); let r = CYR[lo]; if (r === undefined) { o += c; return; }
+    if (lo === 'е' && (i === 0 || /[аеёиоуыэюяьъй]/i.test(a[i - 1]))) r = 'ye';
+    o += c !== lo ? r.charAt(0).toUpperCase() + r.slice(1) : r;
+  });
+  return o;
+}
+/* Chinese: optional user dictionary (store 'pydict', lines "hanzi<TAB>pinyin"); no built-in dictionary */
+let _pyTxt = null, _pyMap = null, _pyMax = 1;
+function pyMap() {
+  const t = store.get('pydict', '');
+  if (t !== _pyTxt) {
+    _pyTxt = t; _pyMap = new Map(); _pyMax = 1;
+    t.split('\n').forEach(l => { const i = l.indexOf('\t'); if (i > 0) { const k = l.slice(0, i).trim(), v = l.slice(i + 1).trim(); if (k && v) { _pyMap.set(k, v); if (k.length > _pyMax) _pyMax = Math.min(12, k.length); } } });
+  }
+  return _pyMap;
+}
+function hanRom(t) {
+  if (!/^\p{Script=Han}+$/u.test(t)) return null;
+  const M = pyMap(); if (!M.size) return null;
+  const c = [...t], o = [];
+  for (let i = 0; i < c.length;) {
+    let n = Math.min(_pyMax, c.length - i), hit = null;
+    for (; n >= 1; n--) { const v = M.get(c.slice(i, i + n).join('')); if (v !== undefined) { hit = v; break; } }
+    if (hit === null) return null;
+    o.push(hit); i += n;
+  }
+  return o.join(' ');
+}
+function romTok(t, lang, mac) {
+  if (/^[\x00-\u024F]+$/.test(t)) return t;
+  return kanaRom(t, mac) || hangulRom(t) || cyrRom(t) || (lang === 'zh' || lang === 'ja' ? hanRom(t) : null);
+}
+function rlDetect(t) {
+  if (/[\u3040-\u30FF]/.test(t)) return 'ja'; if (/[\uAC00-\uD7A3]/.test(t)) return 'ko';
+  if (/[\u0400-\u04FF]/.test(t)) return 'ru'; if (/\p{Script=Han}/u.test(t)) return 'zh'; return '';
+}
+const RLH = {ja: {'さん': 'san', 'くん': 'kun', '君': 'kun', 'ちゃん': 'chan', 'さま': 'sama', '様': 'sama', 'せんぱい': 'senpai', '先輩': 'senpai'}, ko: {'오빠': 'oppa', '형': 'hyung', '누나': 'noona', '님': 'nim', '씨': 'ssi'}, zh: {}, ru: {}};
+const RLP = {'。': '.', '、': ',', '，': ',', '！': '!', '？': '?', '：': ':', '；': ';', '「': '"', '」': '"', '『': '"', '』': '"', '“': '"', '”': '"', '（': '(', '）': ')', '…': '...', '・': ' '};
+/* longest match against entry.raw (all entries of the set; language filtered), then split the gaps into words */
+function rlSplit(text, lang, ents) {
+  const E = ents.filter(e => e.raw && (!lang || e.lang === lang || e.lang === 'other' || e.lang === 'en')).sort((a, b) => b.raw.length - a.raw.length);
+  const low = text.toLowerCase(), toks = []; let gap = '';
+  const flush = () => { if (gap) { rlWords(gap, lang).forEach(w => toks.push(w)); gap = ''; } };
+  for (let i = 0; i < text.length;) {
+    const e = E.find(x => low.startsWith(x.raw.toLowerCase(), i));
+    if (e) { flush(); toks.push({k: 'm', t: text.slice(i, i + e.raw.length), e}); i += e.raw.length; }
+    else gap += text[i++];
+  }
+  flush(); return toks;
+}
+function rlWords(g, lang) {
+  const out = [];
+  for (const m of g.matchAll(/(\s+)|([\p{L}\p{M}\p{N}]+)|([^\s\p{L}\p{M}\p{N}]+)/gu)) {
+    if (m[2]) {
+      let parts = [m[2]];
+      if ((lang === 'ja' || lang === 'zh') && !(pyMap().size && /^\p{Script=Han}+$/u.test(m[2])) && typeof Intl !== 'undefined' && Intl.Segmenter && /[^\x00-\u024F]/.test(m[2])) { try { parts = [...new Intl.Segmenter(lang, {granularity: 'word'}).segment(m[2])].map(s => s.segment); } catch (e) {} }
+      parts.forEach(p => out.push({k: 'w', t: p}));
+    } else out.push({k: 'p', t: m[0]});
+  }
+  return out;
+}
+function rlBuild(text, lang, ents, hon, mac) {
+  lang = lang || rlDetect(text);
+  const T = rlSplit(text, lang, ents), HL = (hon && hon[lang]) || [], RH = RLH[lang] || {};
+  const same = (tok, h) => tok === h.t || (RH[tok] || '') === h.t.toLowerCase();
+  T.forEach((x, i) => {
+    if (x.k !== 'm') { if (x.k === 'w') { x.rom = romTok(x.t, lang, mac); } return; }
+    x.out = x.e.correct; x.pre = ''; x.suf = '';
+    if (!(x.e.rules && x.e.rules.honor)) return;
+    for (const h of HL) {
+      const nx = T[i + 1], pv = T[i - 1];
+      if (h.pos !== 'p' && nx && nx.k === 'w' && !nx.used && same(nx.t, h)) {
+        nx.used = true; const asc = /^[\x00-\x7F]/.test(h.t);
+        x.suf = h.act === 'drop' ? '' : h.act === 'tr' ? (/^[-,.;:)]/.test(h.tr || '') ? '' : ' ') + (h.tr || '') : asc ? '-' + h.t : ' ' + (nx.rom || nx.t);
+        break;
+      }
+      if (h.pos === 'p' && pv && pv.k === 'w' && !pv.used && same(pv.t, h)) {
+        pv.used = true; x.pre = h.act === 'drop' ? '' : (h.act === 'tr' ? h.tr || '' : /^[\x00-\x7F]/.test(h.t) ? h.t.charAt(0).toUpperCase() + h.t.slice(1) : pv.rom || pv.t) + ' ';
+        break;
+      }
+    }
+  });
+  const cap = (x, s) => lang === 'ja' && /^[\u30A0-\u30FF\uFF66-\uFF9F]+$/.test(x.t) ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  const join = parts => { let o = '', prevW = false; parts.forEach(p => { if (p.p) { o += p.s; prevW = /[.,!?;:)]$/.test(p.s); } else { o += (prevW ? ' ' : '') + p.s; prevW = true; } }); return o.replace(/\s+([.,!?;:)])/g, '$1').trim(); };
+  const G = [], R = [];
+  T.forEach(x => {
+    if (x.used) return;
+    if (x.k === 'p') { if (/^\s+$/.test(x.t)) return; const s = [...x.t].map(c => RLP[c] !== undefined ? RLP[c] : c).join(''); G.push({p: 1, s}); R.push({p: 1, s}); return; }
+    if (x.k === 'm') { const s = x.pre + (x.out || '(deleted)') + x.suf; G.push({s}); R.push({s}); return; }
+    const lat = /^[\x00-\u024F]+$/.test(x.t);
+    G.push({s: lat ? x.t : '[' + x.t + ']'}); R.push({s: x.rom !== null && x.rom !== undefined ? cap(x, x.rom) : x.t});
+    x.out = x.rom !== null && x.rom !== undefined ? cap(x, x.rom) : null;
+  });
+  return {lang, toks: T, gloss: join(G), roman: join(R)};
+}
+function rlEnts(lang) { return entriesGet(geName()).filter(e => e.raw); }
+function rlRun() {
+  const t = $('rlIn').value.trim();
+  if (!t) return setStatus('Paste a raw line first.');
+  const ents = rlEnts(), lg = $('rlLang').value, mac = $('rlMac').checked;
+  const r = rlBuild(t, lg, ents, honorAll(), mac);
+  $('rlOut').hidden = false;
+  $('rlGl').textContent = r.gloss; $('rlRo').textContent = r.roman;
+  const box = $('rlTab'); box.textContent = '';
+  r.toks.filter(x => x.k !== 'p' && !x.used).forEach(x => {
+    const row = el('div'); row.className = 'exr';
+    const out = x.k === 'm' ? x.e.correct || '(delete)' : x.rom !== null && x.rom !== undefined ? x.rom : '?';
+    const a = el('span', x.t); a.className = 'wr'; const b = el('span', out); b.className = x.k === 'm' ? 'ok' : 'rw';
+    const n = el('span', x.k === 'm' ? 'from glossary entry' : x.rom !== null && x.rom !== undefined ? 'romanized by rule (approximate)' : 'not in glossary, cannot romanize'); n.className = 'au';
+    row.append(a, ' => ', b, n); box.append(row);
+  });
+  $('rlInfo').textContent = (ents.length ? '' : 'No entries with a raw term in this set yet, so only rule romanization is shown. ') + 'Language: ' + (LANG_NAME[r.lang] || 'not detected') + '. Approximate: dictionary substitution and rule romanization, not real translation.';
+}
+async function rlCopy(id) { setStatus((await copyText($(id).textContent)) ? 'Copied.' : 'Copy failed. Select the text and copy it by hand.'); }
+function pyInfo() { const n = pyMap().size; $('pyInfo').textContent = n ? n + ' dictionary entries stored.' : 'No dictionary yet. Chinese characters stay raw until you import one.'; }
+function pyImport(text, label) {
+  let n = 0, bad = 0; const M = new Map(), cur = store.get('pydict', '');
+  cur.split('\n').forEach(l => { const i = l.indexOf('\t'); if (i > 0) M.set(l.slice(0, i), l.slice(i + 1)); });
+  String(text || '').replace(/^\uFEFF/, '').replace(/\r/g, '').split('\n').forEach(l => {
+    if (!l.trim() || l.startsWith('#')) return; const i = l.indexOf('\t');
+    if (i <= 0 || !l.slice(i + 1).trim()) { bad++; return; }
+    M.set(l.slice(0, i).trim(), l.slice(i + 1).trim()); n++;
+  });
+  if (!n) return setStatus('Import failed: no "hanzi<TAB>pinyin" lines found' + (label ? ' in ' + label : '') + '.');
+  const out = [...M].map(x => x[0] + '\t' + x[1]).join('\n');
+  if (out.length > 3000000) return setStatus('Import failed: dictionary too large (limit about 3 MB).');
+  if (!store.set('pydict', out)) return setStatus('Import failed: browser storage is blocked or full.');
+  pyInfo(); setStatus(`Dictionary: ${n} entries imported` + (bad ? `, ${bad} bad lines skipped` : '') + '.');
+}
+document.addEventListener('DOMContentLoaded', () => { try { pyInfo(); $('pyFile').onchange = async e => { const f = e.target.files[0]; if (!f) return; pyImport(await f.text(), f.name); e.target.value = ''; }; } catch (x) {} });
+function pyClear() { if (!pyMap().size || !confirm('Delete the stored Chinese dictionary?')) return; store.set('pydict', ''); pyInfo(); setStatus('Dictionary cleared.'); }
+
+/* S17: raw check from review. One docs read per raw chapter, cached for the session. */
+const rawSess = {lists: {}, docs: {}};
+async function rawFor(nov, n) {
+  if (!rawSess.lists[nov]) {
+    const L = await rawDocsFor(nov), M = new Map();
+    L.forEach(d => { const c = chNo(d.name); if (c !== null && !M.has(c)) M.set(c, d); });
+    rawSess.lists[nov] = M;
+  }
+  const d = rawSess.lists[nov].get(n); if (!d) return null;
+  if (!rawSess.docs[d.id]) {
+    const x = await api(`https://docs.googleapis.com/v1/documents/${d.id}?fields=body`), P = [];
+    collectParas(x.body && x.body.content, P);
+    rawSess.docs[d.id] = P.map(p => p.text);
+  }
+  return {doc: d, paras: rawSess.docs[d.id]};
+}
+async function rawShow(f, m, wrap, btn) {
+  const old = wrap.querySelector('.rawbox'); if (old) { old.remove(); return; }
+  const box = el('div'); box.className = 'rawbox'; wrap.append(box);
+  const say = t => { box.textContent = t; };
+  if (busy) return say('Wait until the current scan or run is finished.');
+  if (!f.nov) return say('This file came from a saved list, so its novel is unknown. Run a new Preview from the Step 1 novel.');
+  if (!rwGet()[f.nov]) return say('No raw folder is linked for "' + f.nov + '". Link one in Glossary entries > Raw chapters.');
+  const n = chNo(f.name); if (n === null) return say('This file name has no chapter number.');
+  say('Reading the raw chapter...'); btn.disabled = true;
+  try {
+    const r = await rawFor(f.nov, n);
+    if (!r) return say('No raw document with chapter number ' + n + ' in the linked raw folder.');
+    const R = r.paras.length; if (!R) return say('The raw document is empty.');
+    const ratio = f.np > 1 ? m.pi / (f.np - 1) : 0, c = Math.min(R - 1, Math.max(0, Math.round(ratio * (R - 1))));
+    const a = Math.max(0, c - 1), b = Math.min(R - 1, c + 1), ents = rlEnts(), hon = honorAll(), mac = $('rlMac').checked;
+    box.textContent = '';
+    const h = el('div', 'Raw chapter "' + r.doc.name + '", paragraphs ' + (a + 1) + '-' + (b + 1) + ' of ' + R + ' (approximate alignment, middle one is the best guess)'); h.className = 'hint'; box.append(h);
+    for (let i = a; i <= b; i++) {
+      const t = r.paras[i]; if (!t.trim()) continue;
+      const p = el('div'); p.className = i === c ? 'rawp rawc' : 'rawp';
+      p.append(el('div', t));
+      const g = rlBuild(t.length > 1500 ? t.slice(0, 1500) : t, '', ents, hon, mac);
+      if (g.gloss !== t) { const gl = el('div', g.gloss); gl.className = 'au'; p.append(gl); }
+      if (g.roman !== g.gloss && g.roman !== t) { const ro = el('div', g.roman); ro.className = 'au'; p.append(ro); }
+      box.append(p);
+    }
+  } catch (e) { say('Could not read the raw chapter: ' + e.message); }
+  finally { btn.disabled = false; }
+}
+
+/* ---------- v5.17 (S18): glossary change log (store 'glog') + coverage report ---------- */
+const GLOG_MAX = 200, GLOG_PER_CALL = 60;
+function glogGet() { try { const a = JSON.parse(store.get('glog', '[]')); return Array.isArray(a) ? a.filter(x => x && typeof x.t === 'string') : []; } catch (e) { return []; } }
+function glogLabel(e) { return (e.correct || (e.wrong && e.wrong[0]) || e.raw || '(empty)').slice(0, 60); }
+function glogClip(v) { v = String(v == null ? '' : v); return v === '' ? '(empty)' : v.length > 50 ? v.slice(0, 47) + '...' : v; }
+function glogDiff(name, oldA, newA) {
+  const out = [], O = new Map((oldA || []).map(e => [e.id, e])), N = new Map((newA || []).map(e => [e.id, e]));
+  const add = (e, t) => out.push({d: new Date().toISOString(), s: name, e: glogLabel(e), t});
+  const F = [['raw', e => e.raw], ['wrong', e => (e.wrong || []).join(' | ')], ['correct', e => e.correct], ['lang', e => e.lang], ['type', e => e.type], ['note', e => e.note], ['from', e => e.from], ['to', e => e.to], ['rules', e => JSON.stringify(e.rules || {})]];
+  N.forEach((e, id) => {
+    const o = O.get(id);
+    if (!o) { add(e, 'added: ' + (e.raw ? glogClip(e.raw) + ' / ' : '') + (e.wrong && e.wrong.length ? glogClip(e.wrong.join(' | ')) : '(no wrong form)') + ' => ' + glogClip(e.correct)); return; }
+    F.forEach(([f, g]) => { const a = g(o), b = g(e); if (String(a == null ? '' : a) !== String(b == null ? '' : b)) add(e, f + ': ' + glogClip(a) + ' -> ' + glogClip(b)); });
+  });
+  O.forEach((e, id) => { if (!N.has(id)) add(e, 'deleted'); });
+  return out;
+}
+function glogWrite(name, oldA, newA) {
+  try {
+    let d = glogDiff(name, oldA, newA); if (!d.length) return;
+    if (d.length > GLOG_PER_CALL) { const m = d.length - GLOG_PER_CALL; d = d.slice(0, GLOG_PER_CALL); d.push({d: new Date().toISOString(), s: name, e: '(many)', t: '... ' + m + ' more changes not listed'}); }
+    glogLast = d.length;
+    store.set('glog', JSON.stringify(glogGet().concat(d).slice(-GLOG_MAX)));
+    if (typeof glRender === 'function') glRender();
+  } catch (e) {}
+}
+let glogLast = 0;
+function glLine(x) { return x.d.slice(0, 16).replace('T', ' ') + ' | ' + x.s + ' | ' + x.e + ' | ' + x.t; }
+function glRender() {
+  const L = glogGet(), box = $('glList'); if (!box) return;
+  box.textContent = '';
+  L.slice().reverse().forEach(x => { const r = el('div'); r.className = 'exr'; const a = el('span', x.e + ': ' + x.t); const b = el('span', x.d.slice(0, 16).replace('T', ' ') + ' | ' + x.s); b.className = 'au'; r.append(a, b); box.append(r); });
+  $('glInfo').textContent = L.length ? L.length + ' log lines (newest first, max ' + GLOG_MAX + ').' : 'No changes logged yet. Edits, deletes, imports and merges of entries are recorded here.';
+}
+function glExport() {
+  const L = glogGet(); if (!L.length) return setStatus('The change log is empty.');
+  downloadFile('glossary-log-' + stamp() + '.txt', 'Bulk Replace glossary change log\n' + L.map(glLine).join('\n') + '\n', 'text/plain');
+  setStatus('Change log exported (' + L.length + ' lines).');
+}
+function glClear() { if (!glogGet().length || !confirm('Delete the whole change log?')) return; store.set('glog', '[]'); glRender(); setStatus('Change log cleared.'); }
+
+let cvLast = null;
+function cvSource() {
+  const src = $('cvSrc').value;
+  if (src === 'audit') {
+    if (!auLast) return null;
+    return {name: 'last audit (' + auLast.time + ')', stopped: auLast.stopped, P: auLast.T.map(t => ({find: t.find, n: t.n, files: t.files, ch: t.ch || {}}))};
+  }
+  if (!lastScan || !lastScan.pairs) return null;
+  const r = lastScan, P = r.pairs.map((p, k) => ({find: p.find, n: r.totals[k], files: r.fileCounts[k], ch: {}}));
+  r.results.forEach(f => { const nn = chNo(f.name), key = nn === null ? '?' : nn; f.counts.forEach((c, k) => { if (c) P[k].ch[key] = (P[k].ch[key] || 0) + c; }); });
+  return {name: 'last ' + (r.fo ? 'find-only run' : 'preview'), stopped: r.stopped, P};
+}
+function cvBuild() {
+  const S = cvSource();
+  if (!S) return setStatus($('cvSrc').value === 'audit' ? 'Run the Glossary audit first (Step 3).' : 'Run a Preview first (Step 3).');
+  const name = geName(), ents = entriesGet(name);
+  if (!ents.length) return setStatus('This set has no entries.');
+  const byFind = new Map(); S.P.forEach(p => { if (!byFind.has(p.find)) byFind.set(p.find, p); });
+  const used = new Set(), rows = [];
+  ents.forEach(e => {
+    const finds = [...new Set(entriesToPairs([e]).text.split('\n').filter(l => l.indexOf('=>') >= 0).map(l => l.slice(0, l.indexOf('=>')).trim()))];
+    const row = {e, n: 0, files: 0, ch: {}, st: ''};
+    if (!finds.length) row.st = 'no pair (no wrong form)';
+    else {
+      let seen = 0;
+      finds.forEach(f => { const p = byFind.get(f); if (!p) return; seen++; used.add(f); row.n += p.n; row.files += p.files; Object.keys(p.ch).forEach(c => { row.ch[c] = (row.ch[c] || 0) + p.ch[c]; }); });
+      row.st = !seen ? 'not checked (its pair is not in the pairs box)' : row.n ? 'used' : 'unused';
+    }
+    rows.push(row);
+  });
+  const extra = S.P.filter(p => !used.has(p.find)).length;
+  cvLast = {name, S, rows, extra, set: name}; cvRender();
+}
+function cvChText(ch) {
+  const k = Object.keys(ch).filter(x => x !== '?').map(Number).sort((a, b) => a - b), q = ch['?'];
+  return k.length || q ? (k.length ? 'ch ' + rangeList(k) : '') + (q ? (k.length ? ', ' : '') + q + ' in files without number' : '') : '';
+}
+function cvRender() {
+  const box = $('cvList'); box.textContent = ''; if (!cvLast) { $('cvInfo').textContent = ''; return; }
+  const v = $('cvView').value, R = cvLast.rows;
+  const cnt = s => R.filter(r => r.st === s).length;
+  $('cvInfo').textContent = `Set "${cvLast.set}", source: ${cvLast.S.name}. ${R.length} entries: ${cnt('used')} used, ${cnt('unused')} unused, ${R.filter(r => /^not checked/.test(r.st)).length} not checked, ${R.filter(r => /^no pair/.test(r.st)).length} without pair.` + (cvLast.extra ? ` ${cvLast.extra} audited pairs do not come from entries.` : '') + (cvLast.S.stopped ? ' The source scan was stopped early, so counts are partial.' : '');
+  R.filter(r => v === 'all' || (v === 'unused' ? r.st !== 'used' : r.st === 'used')).sort((a, b) => (a.st === 'used') - (b.st === 'used') || b.n - a.n).forEach(r => {
+    const d = el('div'); d.className = 'exr';
+    const l1 = el('div'); const w = el('span', r.e.raw || r.e.wrong[0] || ''); w.className = 'wr'; const c = el('span', r.e.correct || '(delete)'); c.className = 'ok'; l1.append(w, ' => ', c);
+    const l2 = el('span', r.st === 'used' ? `${r.n} matches in ${r.files} files; ${cvChText(r.ch)}` : r.st); l2.className = 'au';
+    d.append(l1, l2); box.append(d);
+  });
+}
+function cvExport() {
+  if (!cvLast) return setStatus('Build the coverage report first.');
+  const rows = [['Raw', 'Wrong', 'Correct', 'Status', 'Matches', 'Files', 'Chapters', 'Per chapter']];
+  cvLast.rows.forEach(r => rows.push([r.e.raw, r.e.wrong.join(' | '), r.e.correct, r.st, r.n, r.files, cvChText(r.ch), Object.keys(r.ch).sort((a, b) => a - b).map(k => k + ':' + r.ch[k]).join('; ')]));
+  downloadFile('coverage-' + stamp() + '.csv', '\uFEFF' + rows.map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n', 'text/csv');
+  setStatus('Coverage exported (' + cvLast.rows.length + ' entries).');
+}
+document.addEventListener('DOMContentLoaded', () => { try { glRender(); } catch (x) {} });
 </script>
 </body>
 </html>
