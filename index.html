@@ -87,6 +87,9 @@ progress::-moz-progress-bar{background:var(--ac)}
 #rv{padding:14px 16px;display:grid;gap:10px;position:relative}
 #selinfo{font-weight:650;font-size:14px;color:var(--ac)}
 details.box{border:1px solid var(--bd);border-radius:12px;background:var(--sf2)}
+.hor{display:flex;flex-wrap:wrap;gap:8px;padding:8px 0;border-bottom:1px solid var(--bd)}
+.hor>*{flex:1 1 110px;min-width:0}
+.hor:last-child{border-bottom:0}
 div.smbox{border:1px solid var(--bd);border-radius:12px;background:var(--sf2);padding:10px 12px}
 details.box>summary{padding:10px 12px;min-height:44px;cursor:pointer;font-weight:600;font-size:14.5px;display:flex;align-items:center}
 details.box>.bd{padding:4px 12px 12px}
@@ -156,7 +159,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
 <body>
 <div class="app">
 <header class="top">
-  <div class="t"><h1>Bulk Replace<span class="ver">v5.4</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
+  <div class="t"><h1>Bulk Replace<span class="ver">v5.5</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
   <button id="hbtn" onclick="openHistory()" title="History of replace runs">History</button>
   <button class="icon" id="thm" onclick="cycleTheme()" aria-label="Change theme" title="Change theme">Auto</button>
 </header>
@@ -187,6 +190,20 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
           <button class="sm" onclick="delProf()">Delete selected profile</button>
         </div>
         <p class="hint">Picking a profile switches to its Client ID and My Work folder ID at once; then reload the novel list. Profiles are included in the backup.</p>
+      </div>
+    </details>
+    <details class="box" id="hoBox">
+      <summary>Honorific rules (keep, translate or drop)</summary>
+      <div class="bd">
+        <label class="fl">Language
+          <select id="hoLang"><option value="ja">Japanese</option><option value="ko">Korean</option><option value="zh">Chinese</option><option value="ru">Russian</option></select>
+        </label>
+        <div class="exl" id="hoList"></div>
+        <div class="row">
+          <button class="sm" onclick="hoAdd()">Add honorific</button>
+          <button class="sm" onclick="hoReset()">Reset this language</button>
+        </div>
+        <p class="hint">Applies only to entries with "Has honorific" ticked in Glossary entries. Keep = the name changes, the honorific stays. Drop = name and honorific become the correct term. Translate = the honorific is replaced by your text. Type honorifics without the hyphen (san, not -san). Matching uses lowercase as typed; use Whole word mode.</p>
       </div>
     </details>
     <div class="row">
@@ -318,6 +335,7 @@ details.file>button{display:block;margin:0 10px 12px;width:calc(100% - 20px)}
         <label>Type<select id="geType"><option value="name">Name</option><option value="skill">Skill</option><option value="place">Place</option><option value="title">Title</option><option value="other">Other</option></select></label>
       </div>
       <label>Note (optional)<input type="text" id="geNote" autocomplete="off"></label>
+      <label class="sw"><input type="checkbox" id="geHon">Has honorific (apply the honorific rules from Settings for this language)</label>
       <label class="sw"><input type="checkbox" id="geSwap">Swap name order (a 2-word wrong form such as Li Wei also finds Wei Li)</label>
       <div class="row">
         <button class="pri" onclick="geSave()">Save entry</button>
@@ -1411,12 +1429,14 @@ async function applySelected(auto) {
   const complex = r.results.reduce((a, f) => a + f.matches.filter(m => !m.ok).length, 0);
   const jobs = [];
   for (const f of r.results) {
-    const ms = f.matches.filter(m => m.sel && m.ok).sort((x, y) => y.ds - x.ds);
+    /* overlap: the pair higher in the list wins (v5.5; before: the later start won), then apply from the end of the doc backwards */
+    const ms = f.matches.filter(m => m.sel && m.ok).sort((x, y) => x.k - y.k || x.ds - y.ds);
     const chosen = [];
     for (const m of ms) {
-      if (chosen.length && m.de > chosen[chosen.length - 1].ds) continue; /* overlap */
+      if (chosen.some(c => m.ds < c.de && c.ds < m.de)) continue; /* overlap */
       chosen.push(m);
     }
+    chosen.sort((x, y) => y.ds - x.ds);
     if (chosen.length) jobs.push({f, chosen});
   }
   const total = jobs.reduce((a, j) => a + j.chosen.length, 0);
@@ -1578,7 +1598,7 @@ function exportBackup() {
   let opts = {}, sel = [];
   try { opts = JSON.parse(store.get('opts', '{}')) || {}; } catch (e) {}
   try { sel = JSON.parse(store.get('sel', '[]')) || []; } catch (e) {}
-  const data = {cid: CLIENT_ID, root: ROOT_ID, draft: $('pairs').value, gloss: gloss(), opts, sel, selp: Object.fromEntries(selMap), profiles: profs(), glex: glexAll(), theme: store.get('theme', 'auto')};
+  const data = {cid: CLIENT_ID, root: ROOT_ID, draft: $('pairs').value, gloss: gloss(), opts, sel, selp: Object.fromEntries(selMap), profiles: profs(), glex: glexAll(), honor: honorAll(), theme: store.get('theme', 'auto')};
   if ($('bkHist').checked) data.hist = getHist();
   const doc = {app: 'bulk-replace', version: 5, date: new Date().toISOString(), data};
   downloadFile('bulk-replace-backup-' + stamp() + '.json', JSON.stringify(doc, null, 2), 'application/json');
@@ -1640,6 +1660,7 @@ async function importBackup(inp) {
       for (const k of Object.keys(d.glex)) { const a = glexClean(d.glex[k]); if (a) { G[k] = a; exN++; } }
       store.set('glex', JSON.stringify(G));
     }
+    if (d.honor && typeof d.honor === 'object' && !Array.isArray(d.honor)) { store.set('honor', JSON.stringify(honorClean(d.honor))); hoRender(); }
     refreshGloss();
     setStatus(`Backup restored (${names.length} glossaries merged` + (histN ? `, ${histN} history runs added` : '') + (exN ? `, ${exN} entry sets merged` : '') + `).` + (acct ? ' Settings changed, so reload the novel list.' : '') + (ok ? '' : ' Some data could not be saved (browser storage is blocked).'));
   } catch (e) { setStatus('Import failed: ' + e.message); }
@@ -2241,8 +2262,8 @@ function glexClean(a) {
   });
 }
 /* entries -> normal pair lines (wrong variants joined by " | ") */
-function entriesToPairs(arr) {
-  const lines = []; let skipped = 0;
+function entriesToPairs(arr, hon) {
+  const lines = []; let skipped = 0; hon = hon || honorAll();
   for (const e of arr || []) {
     const w = (e.wrong || []).map(x => String(x).trim()).filter(Boolean);
     if (!w.length) { skipped++; continue; }
@@ -2250,7 +2271,24 @@ function entriesToPairs(arr) {
       const low = new Set(w.map(x => x.toLowerCase()));
       w.slice().forEach(x => { const q = x.split(/\s+/); if (q.length === 2) { const y = q[1] + ' ' + q[0]; if (!low.has(y.toLowerCase())) { low.add(y.toLowerCase()); w.push(y); } } });
     }
-    lines.push(w.join(' | ') + ' => ' + String(e.correct || '').trim());
+    const cor = String(e.correct || '').trim();
+    /* honorific lines go BEFORE the plain line (pairs run top to bottom) */
+    if (e.rules && e.rules.honor && cor) {
+      const HL = hon[e.lang] || [];
+      /* wrong forms that already carry an honorific are not expanded again */
+      const hasH = x => { const lx = x.toLowerCase(); return HL.some(h => { const t = h.t.toLowerCase(), a = /^[\x00-\x7F]/.test(h.t); return h.pos === 'p' ? lx.startsWith(t + ' ') : lx.endsWith(t) && (!a || /[-\s]/.test(lx.charAt(lx.length - t.length - 1))); }); };
+      const wb = w.filter(x => !hasH(x));
+      for (const h of wb.length ? HL : []) {
+        if (h.act === 'keep' || !h.t) continue;
+        const tr = h.act === 'tr' ? String(h.tr || '').trim() : '', ascii = /^[\x00-\x7F]/.test(h.t);
+        const forms = [];
+        if (h.pos === 'p') wb.forEach(x => forms.push(h.t + (ascii ? ' ' : '') + x));
+        else (ascii ? (wb.length <= 20 ? ['-', ' '] : ['-']) : ['']).forEach(sp => wb.forEach(x => forms.push(x + sp + h.t)));
+        const rp = !tr ? cor : h.pos === 'p' ? tr + ' ' + cor : cor + (/^[-,.;:)]/.test(tr) ? '' : ' ') + tr;
+        lines.push(forms.join(' | ') + ' => ' + rp);
+      }
+    }
+    lines.push(w.join(' | ') + ' => ' + cor);
   }
   return {text: lines.join('\n'), count: lines.length, skipped};
 }
@@ -2342,7 +2380,7 @@ function geOpen(id) {
   $('geRaw').value = e ? e.raw : ''; $('geWrong').value = e ? e.wrong.join('\n') : '';
   $('geCor').value = e ? e.correct : ''; $('geLang').value = e ? e.lang : 'ja';
   $('geType').value = e ? e.type : 'name'; $('geNote').value = e ? e.note : '';
-  $('geSwap').checked = !!(e && e.rules && e.rules.swap);
+  $('geSwap').checked = !!(e && e.rules && e.rules.swap); $('geHon').checked = !!(e && e.rules && e.rules.honor);
   $('geDelB').hidden = !e; $('geEd').hidden = false;
   $('geEd').scrollIntoView({block: 'nearest', behavior: 'smooth'});
   $(e ? 'geCor' : 'geRaw').focus({preventScroll: true});
@@ -2359,6 +2397,7 @@ function geSave() {
   const data = {raw, wrong, correct: $('geCor').value, lang: $('geLang').value, type: $('geType').value, note: $('geNote').value.trim()};
   const i = geEditId ? list.findIndex(x => x.id === geEditId) : -1;
   const rl = Object.assign({}, i >= 0 ? list[i].rules : {}); if ($('geSwap').checked) rl.swap = true; else delete rl.swap;
+  if ($('geHon').checked) rl.honor = true; else delete rl.honor;
   if (i >= 0) { const o = list[i]; list[i] = Object.assign(entryNew(data), {id: o.id, from: o.from, to: o.to, rawCh: o.rawCh, rules: rl}); }
   else list.push(entryNew(Object.assign(data, {rules: rl})));
   if (!glexSet(name, list)) return setStatus('Not saved (browser storage is blocked).');
@@ -2543,6 +2582,67 @@ function geConvertAll() {
   ['geFL', 'geFT'].forEach(i => $(i).addEventListener('change', renderEntries));
   renderEntries();
 })();
+
+/* ---------- v5.5: honorific rules (store 'honor' = {ja|ko|zh|ru: [{t, pos: 's'|'p', act: 'keep'|'tr'|'drop', tr}]}) ---------- */
+function hoDefaults() {
+  const h = (t, pos) => ({t, pos: pos || 's', act: 'keep', tr: ''});
+  return {
+    ja: ['san', 'kun', 'chan', 'sama', 'senpai'].map(t => h(t)),
+    ko: ['oppa', 'hyung', 'noona', 'nim', 'ssi'].map(t => h(t)),
+    zh: [h('师兄'), h('师姐'), h('Senior Brother', 'p'), h('Senior Sister', 'p')],
+    ru: [h('Gospodin', 'p'), h('Gospozha', 'p'), h('Tovarishch', 'p')]
+  };
+}
+function honorClean(o) {
+  const out = {}, D = hoDefaults();
+  for (const l of Object.keys(D)) {
+    const a = o && Array.isArray(o[l]) ? o[l] : D[l];
+    out[l] = a.slice(0, 60).map(x => ({
+      t: String((x && x.t) || '').replace(/^[-\s]+/, '').trim().slice(0, 40), pos: x && x.pos === 'p' ? 'p' : 's',
+      act: x && (x.act === 'tr' || x.act === 'drop') ? x.act : 'keep', tr: String((x && x.tr) || '').trim().slice(0, 40)
+    })).filter(x => x.t);
+  }
+  return out;
+}
+function honorAll() { try { return honorClean(JSON.parse(store.get('honor', 'null'))); } catch (e) { return honorClean(null); } }
+let hoCur = 'ja', hoLock = false; /* hoCur = language the visible list was drawn for; hoLock blocks saves while it is redrawn */
+function hoSave() {
+  if (hoLock) return;
+  const l = hoCur, a = [];
+  [...$('hoList').children].forEach(r => { const f = r.querySelectorAll('input,select'); a.push({t: f[0].value, pos: f[1].value, act: f[2].value, tr: f[3].value}); });
+  const all = honorAll(); all[l] = a;
+  store.set('honor', JSON.stringify(honorClean(all)));
+}
+function hoRow(h) {
+  const r = el('div'); r.className = 'hor';
+  const t = el('input'); t.type = 'text'; t.value = h.t; t.placeholder = 'Honorific'; t.setAttribute('aria-label', 'Honorific text'); t.autocomplete = 'off';
+  const mk = (opts, v, lab) => { const s2 = el('select'); s2.setAttribute('aria-label', lab); opts.forEach(([k, n]) => { const o = el('option', n); o.value = k; s2.appendChild(o); }); s2.value = v; return s2; };
+  const pos = mk([['s', 'After name'], ['p', 'Before name']], h.pos, 'Position');
+  const act = mk([['keep', 'Keep'], ['tr', 'Translate'], ['drop', 'Drop']], h.act, 'Action');
+  const tr = el('input'); tr.type = 'text'; tr.value = h.tr; tr.placeholder = 'Replace with'; tr.setAttribute('aria-label', 'Translation'); tr.autocomplete = 'off'; tr.hidden = h.act !== 'tr';
+  const del = el('button', 'Remove'); del.className = 'sm'; del.type = 'button';
+  del.addEventListener('click', () => { r.remove(); hoSave(); });
+  r.addEventListener('input', hoSave);
+  r.addEventListener('change', () => { tr.hidden = act.value !== 'tr'; hoSave(); });
+  [t, pos, act, tr, del].forEach(x => r.appendChild(x));
+  return r;
+}
+function hoRender() {
+  const box = $('hoList'), l = $('hoLang').value, L = honorAll()[l];
+  hoLock = true;
+  try { box.textContent = ''; hoCur = l; L.forEach(h => box.appendChild(hoRow(h))); } finally { hoLock = false; }
+}
+function hoAdd() {
+  if ($('hoList').children.length >= 60) return setStatus('At most 60 honorifics per language.');
+  const r = hoRow({t: '', pos: 's', act: 'keep', tr: ''}); $('hoList').appendChild(r); r.querySelector('input').focus();
+}
+function hoReset() {
+  if (!confirm('Reset the honorific list of this language to the built-in defaults?')) return;
+  const all = honorAll(), l = hoCur; all[l] = hoDefaults()[l];
+  store.set('honor', JSON.stringify(honorClean(all))); hoRender();
+}
+$('hoLang').addEventListener('change', hoRender);
+hoRender();
 </script>
 </body>
 </html>
