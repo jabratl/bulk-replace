@@ -311,3 +311,5 @@ S22 (v5.21) - TABBED WORKSPACE + DRAWERS (UI only, no logic/ID change)
 - Tips: static .hint elements are tagged data-st and hidden by default (store 'tips'); dynamic hints (#pcount, history empty text) are never hidden.
 - Removed: #qnav, old Show-all-tools button location (#uiMode now in the strip under the tabs). #gdNew moved onto the Guide icon.
 - Do NOT remove ids gdNew / uiMode / hbtn / thm: old code writes to them.
+
+S23 (v5.21) - dock summary line (#sumline, "N novels - N pairs - range" + fix-it button) and Pair tester (#ptTest inside #c2). UI only; reads parsePairs/buildRe/expandRepl/keepCase.

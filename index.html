@@ -306,6 +306,15 @@ body.tips-off .hint[data-st]{display:none}
 /* bottom action dock, all screen sizes */
 .dock{position:fixed!important;top:auto!important;left:0;right:0;bottom:0;z-index:40;margin:0;border:0;border-top:1px solid var(--bd);border-radius:0;box-shadow:none;background:var(--sf);padding:10px max(14px,calc((100vw - 820px)/2)) calc(10px + env(safe-area-inset-bottom))}
 @media(prefers-reduced-motion:reduce){.left>.card.drawer.show{animation:none}}
+/* S23: dock summary line + pair tester */
+#sumline{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;font-size:13px;color:var(--mut)}
+#sumline b{color:var(--fg);font-weight:650}
+#sumFix{min-height:30px;padding:0 12px;border-radius:99px;border:1px solid var(--er);background:transparent;color:var(--er);font-size:12.5px;font-weight:650}
+#ptOut{display:grid;gap:6px;font-size:13.5px;word-break:break-word}
+#ptOut .r{padding:8px 10px;border:1px solid var(--bd);border-radius:10px;background:var(--sf2)}
+#ptOut .r.no{color:var(--mut)}
+#ptOut del{background:var(--dl);color:var(--dlf);text-decoration:line-through;border-radius:4px;padding:0 3px}
+#ptOut ins{background:var(--in);color:var(--inf);text-decoration:none;border-radius:4px;padding:0 3px;font-weight:600}
 </style>
 </style>
 
@@ -4271,6 +4280,67 @@ gdInit();
 
   app.dataset.tab = 'novels'; app.dataset.sub = 'pairs';
   tipsApply(); paint(); counts();
+})();
+</script>
+<script>
+/* ---------- v5.21 (S23): dock summary + fix-it button, pair tester (UI only, reads existing parsePairs/buildRe/expandRepl) ---------- */
+(function () {
+  const dock = $('dock'), line = document.createElement('div');
+  line.id = 'sumline'; dock.insertBefore(line, dock.firstChild);
+  function sl() {
+    const n = document.querySelectorAll('#selbox .chip').length;
+    let p = 0; try { p = parsePairs().pairs.length; } catch (e) {}
+    const a = $('rfrom').value.trim(), b = $('rto').value.trim();
+    const rg = a || b ? `Ch ${a || '1'}\u2013${b || 'end'}` : 'all chapters';
+    line.textContent = '';
+    const t = document.createElement('span');
+    const mk = (x) => { const e = document.createElement('b'); e.textContent = x; return e; };
+    t.append(mk(n + (n === 1 ? ' novel' : ' novels')), ' \u00b7 ', mk(p + (p === 1 ? ' pair' : ' pairs')), ' \u00b7 ' + rg);
+    line.append(t);
+    if (!n || !p) {
+      const f = document.createElement('button'); f.type = 'button'; f.id = 'sumFix';
+      f.textContent = !n ? 'Pick a novel first' : 'Add term pairs first';
+      f.onclick = () => showTab(!n ? 'novels' : 'pairs');
+      line.append(f);
+    }
+  }
+  const mo = new MutationObserver(sl);
+  mo.observe($('selbox'), {childList: true});
+  mo.observe($('pcount'), {childList: true, characterData: true, subtree: true});
+  ['pairs', 'rfrom', 'rto'].forEach(i => $(i).addEventListener('input', sl));
+  sl();
+
+  // Pair tester: paste a line, see which pairs hit and what each would become
+  const box = document.createElement('details'); box.className = 'box'; box.id = 'ptTest';
+  const sm = document.createElement('summary'); sm.textContent = 'Test a line against your pairs';
+  const bd = document.createElement('div'); bd.className = 'bd';
+  const ta = document.createElement('textarea'); ta.id = 'ptIn'; ta.placeholder = 'Paste a sentence from a chapter here...'; ta.rows = 3;
+  const out = document.createElement('div'); out.id = 'ptOut';
+  bd.append(ta, out); box.append(sm, bd);
+  $('c2').querySelector(':scope>.bd').append(box);
+  function run() {
+    out.textContent = '';
+    const txt = ta.value; if (!txt.trim()) return;
+    let pr; try { pr = parsePairs().pairs; } catch (e) { pr = []; }
+    if (!pr.length) { const d = document.createElement('div'); d.className = 'r no'; d.textContent = 'No valid pairs yet.'; out.append(d); return; }
+    let hits = 0;
+    pr.forEach(p => {
+      let re; try { re = buildRe(p); } catch (e) { return; }
+      re.lastIndex = 0; let m, c = 0, first = null;
+      while ((m = re.exec(txt)) && c < 50) { if (!m[0]) { re.lastIndex++; continue; } c++; if (!first) first = m; }
+      if (!c) return;
+      hits++;
+      let rep = p.repl; try { rep = keepCase(first[0], expandRepl(p.repl, first), $('keepcase').checked); } catch (e) {}
+      const d = document.createElement('div'); d.className = 'r';
+      const del = document.createElement('del'); del.textContent = first[0];
+      const ins = document.createElement('ins'); ins.textContent = rep || '(deleted)';
+      d.append(del, ' \u2192 ', ins, ' \u00b7 ' + c + (c === 1 ? ' match' : ' matches'));
+      out.append(d);
+    });
+    if (!hits) { const d = document.createElement('div'); d.className = 'r no'; d.textContent = 'No pair matches this line with the current options.'; out.append(d); }
+  }
+  ta.addEventListener('input', run);
+  ['pairs', 'c', 'flex', 'smart', 'mode', 'keepcase'].forEach(i => { const e = $(i); if (e) e.addEventListener('input', run); if (e) e.addEventListener('change', run); });
 })();
 </script>
 </body>
