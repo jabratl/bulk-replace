@@ -300,3 +300,14 @@ v5.1 (S2) 2026-11-06: entry editor (add/edit/delete), search over raw/wrong/corr
 v5.0 (S1) 2026-11-06: glossary entries data layer ('glex'), read-only Glossary entries card (Load from glossary text / Use as pairs / Clear), glex in backup. Tests: node --check, no duplicate ids, Playwright 360+1280 light+dark (load, add raw entry, use as pairs, backup round trip, no overflow, 0 JS errors).
 plan rev2: Bengali items removed from plan (S4, S8, S15, tests); scope = JP/KR/CN/RU raw + English.
 v4.8 (base): profiles, doc counts, glossary files, auto-load glossary, uncomment, undo from report (see HANDOFF.md for v4.1-v4.8).
+
+
+S22 (v5.21) - TABBED WORKSPACE + DRAWERS (UI only, no logic/ID change)
+- Header: icon buttons Guide / History / Backup / Settings + theme. Old #gdBtn/#hbtn kept as hidden elements (JS still writes to #hbtn text; icon title mirrors it).
+- 4 tabs (Novels c1 | Pairs c2 + sub-pills Entries geCard / Raw line rlCard (data-adv) | Options c3 | Results = whole #out). State = data-tab / data-sub on .app; visibility is CSS only.
+- Drawers (slide-over, class "card drawer", shown with .show): gdCard, hist, cBk, cSet. Shared close button #dx, backdrop #dbk, Esc and Android Back (history.pushState {dr:1}) close them.
+- .dock is fixed bottom on every screen size. Preview/Replace all/Replace ticked/Stop/progress/#log unchanged.
+- Wrapped (window.X = ...) in the last <script>: goCard, goGuide, openHistory, gdGo (switch tab/drawer first), uiApply, preview, replaceAll, applySelected (jump to Results when something was found).
+- Tips: static .hint elements are tagged data-st and hidden by default (store 'tips'); dynamic hints (#pcount, history empty text) are never hidden.
+- Removed: #qnav, old Show-all-tools button location (#uiMode now in the strip under the tabs). #gdNew moved onto the Guide icon.
+- Do NOT remove ids gdNew / uiMode / hbtn / thm: old code writes to them.
