@@ -203,6 +203,53 @@ button.gdq{display:flex;align-items:center;gap:10px;text-align:left;font-weight:
 .gdb b,.gda b{flex:none;width:44px;font-size:12px}
 .gdn{padding:6px 10px;font-size:13px;color:var(--mut)}
 .gdtip{margin:0;font-size:14px;background:var(--acs);border-radius:10px;padding:8px 10px}
+/* v5.20 (S21): compact layout, UI only (no logic change) */
+.app{padding-top:10px}
+.top{margin:0 0 6px;gap:8px}
+.top h1{font-size:20px}
+.top p{font-size:12.5px;margin:0}
+.top button{min-height:38px;padding:6px 12px;font-size:14px}
+.top .icon{min-width:44px}
+.cols{gap:12px}
+.card{border-radius:14px;margin-bottom:10px}
+.card>summary{min-height:48px;padding:8px 14px}
+.bd{padding:12px 14px 14px;gap:8px}
+.card .bd>.hint:first-child{padding:0;border:0;background:none}
+.hint{font-size:12.5px}
+.st small{font-size:12px;margin-top:1px}
+textarea{min-height:100px}
+#pairs{min-height:130px}
+details.box>summary{min-height:42px}
+.qnav{padding:6px 0;gap:6px;margin-bottom:4px}
+.qnav button{min-height:34px;padding:0 12px;font-size:13.5px}
+.qnav .n{width:20px;height:20px;font-size:11px}
+.card,.box{scroll-margin-top:56px}
+.row>button.sm{flex:1 1 92px;font-size:13.5px;padding:6px 8px}
+.g2,#tb .row,#rv .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px}
+.seg{display:flex}
+.seg button{flex:1;border-radius:0;margin-left:-1px;font-size:13.5px;padding:6px 4px}
+.seg button:first-child{border-radius:10px 0 0 10px;margin-left:0}
+.seg button:last-child{border-radius:0 10px 10px 0}
+.grp{display:grid;gap:8px;padding-top:12px;border-top:1px solid var(--bd)}
+.grp:first-child{border-top:0;padding-top:0}
+.gh{margin:0;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mut)}
+.swg{border:1px solid var(--bd);border-radius:12px;background:var(--sf2);padding:0 12px}
+.swg .sw{padding:9px 0;border-bottom:1px solid var(--bd)}
+.swg>.sw:last-child{border-bottom:0}
+.sw span{display:flex;flex-direction:column;line-height:1.3;min-width:0}
+.sw small{font-size:12px;font-weight:400;color:var(--mut);margin-top:1px}
+.swg .smbox{margin:0 0 6px 8px;border:0;border-left:3px solid var(--bd);border-radius:0;background:none;padding:0 0 0 10px}
+.swg .smbox .sw{border-bottom:0;padding:6px 0}
+.row>.sw{padding:6px 0}
+.fl{gap:4px}
+.dock{padding:10px;gap:8px;border-radius:14px}
+#tb{padding:10px 12px;gap:8px}
+#rv{padding:12px 14px;gap:8px}
+@media(max-width:979px){.app{padding-bottom:165px}}
+.top h1{white-space:nowrap}
+#list:empty::before{padding:10px 8px}
+#uiHint{font-size:12px;margin-bottom:8px}
+@media(max-width:480px){.top p,#gdBtn{display:none}}
 @media(min-width:980px){
 .app{padding-bottom:40px}
 .cols{grid-template-columns:minmax(0,5fr) minmax(0,6fr);align-items:start}
@@ -219,10 +266,10 @@ button.gdq{display:flex;align-items:center;gap:10px;text-align:left;font-weight:
 <body>
 <div class="app">
 <header class="top">
-  <div class="t"><h1>Bulk Replace<span class="ver">v5.19</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
-  <button id="gdBtn" onclick="goGuide()" title="How to use every feature">Guide</button>
-  <button id="hbtn" onclick="openHistory()" title="History of replace runs">History</button>
-  <button class="icon" id="thm" onclick="cycleTheme()" aria-label="Change theme" title="Change theme">Auto</button>
+  <div class="t"><h1>Bulk Replace<span class="ver">v5.20</span></h1><p>Fix translated terms across your Google Docs novels in bulk</p></div>
+  <button class="sm" id="gdBtn" onclick="goGuide()" title="How to use every feature">Guide</button>
+  <button class="sm" id="hbtn" onclick="openHistory()" title="History of replace runs">History</button>
+  <button class="icon sm" id="thm" onclick="cycleTheme()" aria-label="Change theme" title="Change theme">Auto</button>
 </header>
 
 <nav class="qnav" id="qnav" aria-label="Jump to a section">
@@ -242,122 +289,44 @@ button.gdq{display:flex;align-items:center;gap:10px;text-align:left;font-weight:
 <div class="cols">
 <div class="left">
 
-<details class="card" id="gdCard">
-  <summary><span class="st"><b>Guide: how to use</b><small>Every feature with steps and examples</small></span><span class="ver" id="gdBadge" title="Topics marked as read">0/0</span></summary>
-  <div class="bd">
-    <p class="hint">New here? Follow the 5 quick steps. Then open any topic: what it does, steps, a before/after example and a tip. "Go there" jumps to the real button.</p>
-    <div class="gdqs" id="gdQs"></div>
-    <input type="text" id="gdQ" placeholder="Search the guide (e.g. undo, dialogue, backup)" autocomplete="off" aria-label="Search the guide">
-    <div class="row gdf">
-      <button class="chip on" id="gdLv_all" onclick="gdSetLv('all')" aria-pressed="true"><span>All</span></button>
-      <button class="chip" id="gdLv_b" onclick="gdSetLv('b')" aria-pressed="false"><span>Basic</span></button>
-      <button class="chip" id="gdLv_a" onclick="gdSetLv('a')" aria-pressed="false"><span>Advanced</span></button>
-    </div>
-    <div class="row">
-      <button class="sm" onclick="gdAll(true)">Expand all</button>
-      <button class="sm" onclick="gdAll(false)">Collapse all</button>
-      <button class="sm" onclick="gdReset()">Clear read marks</button>
-    </div>
-    <p class="hint" id="gdInfo" role="status"></p>
-    <div id="gdList"></div>
-    <p class="hint" id="gdEmpty" hidden>No topic matches. Try a shorter word.</p>
-  </div>
-</details>
-
-<details class="card" id="cSet">
-  <summary><span class="st"><b>Settings and account</b><small>Google sign-in, profiles, theme</small></span></summary>
-  <div class="bd">
-    <label class="fl">Google OAuth Client ID
-      <small>Paste your Client ID in this box. Find it in Google Cloud Console: APIs and Services, then Credentials, then your OAuth 2.0 Web client. It looks like 1234567890-abcdef.apps.googleusercontent.com. It is only used to sign in and is not a password.</small>
-      <input type="text" id="cid" placeholder="1234567890-abcdef.apps.googleusercontent.com" autocomplete="off">
-    </label>
-    <label class="fl">My Work folder ID
-      <small>Paste the ID of the Drive folder that holds all your novel folders. Open that folder in Google Drive and copy the part of the address after /folders/ (drive.google.com/drive/folders/THIS_PART). Pasting the whole folder link also works. Do not paste a single Doc here.</small>
-      <input type="text" id="root" placeholder="1Y7cF60rpEzIgwH-vxDZ... or the folder link" autocomplete="off">
-    </label>
-    <button class="pri" onclick="saveSettings()">Save settings</button>
-    <p class="hint">Saved in this browser. Leave empty and save to use the default ID built into the code.</p>
-    <details class="box">
-      <summary>Profiles (switch Client ID and folder ID in one click)</summary>
-      <div class="bd">
-        <select id="prof" onchange="applyProf()"><option value="">-- saved profiles --</option></select>
-        <input type="text" id="pname" placeholder="Profile name (e.g. Main account)" autocomplete="off">
-        <div class="row">
-          <button class="sm" onclick="saveProf()">Save current IDs as profile</button>
-          <button class="sm" onclick="delProf()">Delete selected profile</button>
-        </div>
-        <p class="hint">Picking a profile switches to its Client ID and My Work folder ID at once; then reload the novel list. Profiles are included in the backup.</p>
-      </div>
-    </details>
-    <details class="box" id="hoBox" data-adv>
-      <summary>Honorific rules (keep, translate or drop)</summary>
-      <div class="bd">
-        <label class="fl">Language
-          <select id="hoLang"><option value="ja">Japanese</option><option value="ko">Korean</option><option value="zh">Chinese</option><option value="ru">Russian</option></select>
-        </label>
-        <div class="exl" id="hoList"></div>
-        <div class="row">
-          <button class="sm" onclick="hoAdd()">Add honorific</button>
-          <button class="sm" onclick="hoReset()">Reset this language</button>
-        </div>
-        <p class="hint">Applies only to entries with "Has honorific" ticked in Glossary entries. Keep = the name changes, the honorific stays. Drop = name and honorific become the correct term. Translate = the honorific is replaced by your text. Type honorifics without the hyphen (san, not -san). Matching uses lowercase as typed; use Whole word mode.</p>
-      </div>
-    </details>
-    <div class="row">
-      <button onclick="switchAccount()">Sign in with another Google account</button>
-      <button onclick="logout()">Logout</button>
-    </div>
-    <p class="hint" id="authInfo"></p>
-    <label class="fl">Text size of match lines
-      <select id="tsize"><option value="n">Normal</option><option value="l">Large</option><option value="xl">Extra large</option></select>
-    </label>
-    <p class="hint">Shortcuts on a computer: Ctrl+Enter = Preview, Esc = Stop.</p>
-  </div>
-</details>
-
-<details class="card" id="cBk">
-  <summary id="bkSum">Backup and restore</summary>
-  <div class="bd">
-    <p class="hint">A backup file holds your settings, glossaries, current pairs and options. It never contains your login token, so it is safe to keep.</p>
-    <label class="sw"><input type="checkbox" id="bkHist">Include run history in the backup file</label>
-    <div class="row">
-      <button class="pri" onclick="exportBackup()">Export backup (.json)</button>
-      <button onclick="$('fBackup').click()">Import backup</button>
-    </div>
-    <input type="file" id="fBackup" accept=".json,application/json" hidden onchange="importBackup(this)">
-    <p class="hint" id="bkInfo"></p>
-  </div>
-</details>
-
 <details class="card step" id="c1" open>
   <summary><span class="n">1</span><span class="st"><b>Novels and folders</b><small>Load your list and tick the novels to fix</small></span></summary>
   <div class="bd">
-    <button class="pri" onclick="loadNovels()">Load novel list</button>
+    <div class="row">
+      <button class="pri" onclick="loadNovels()">Load novel list</button>
+      <button onclick="countNovels()">Count docs per novel</button>
+    </div>
     <input type="text" id="nq" placeholder="Search novels..." oninput="filterNovels()" autocomplete="off">
     <div id="list"></div>
-    <div class="row">
+    <div class="seg">
       <button class="sm" onclick="folderSel('all')">Folders: all</button>
       <button class="sm" onclick="folderSel('none')">Folders: none</button>
       <button class="sm" onclick="folderSel('invert')">Folders: invert</button>
     </div>
-    <button class="sm" onclick="countNovels()">Count docs per novel</button>
     <div id="selbox" class="selbox none">No folder selected.</div>
     <div id="gsug" class="row"></div>
-    <p class="hint">Only ticked folders (and their subfolders) are processed. Tap ▸ to see subfolders. Tap a chip to remove a folder. Your ticks, including subfolders, are remembered on this device.</p>
-    <label class="fl">Extra folders (optional)
+    <p class="hint">Tick the folders to fix. Tap ▸ to see subfolders, tap a chip to remove a folder. Ticks are remembered on this device.</p>
+    <details class="box" id="exBox">
+      <summary>Extra folders and subfolder options</summary>
+      <div class="bd">
+        <label class="sw"><input type="checkbox" id="rec" checked>Include subfolders of ticked folders</label>
+        <label class="fl">Extra folders (optional)
       <small>Folder IDs or links of other Drive folders to include besides the ticked ones, separated by commas. Use it for folders outside My Work. It must be a folder, not a single Doc.</small>
       <input type="text" id="extra" placeholder="folder ID or link, another ID or link" autocomplete="off">
     </label>
-    <label class="sw"><input type="checkbox" id="rec" checked>Include subfolders of ticked folders</label>
+        <p class="hint">Only ticked folders (and their subfolders) are processed. Tap ▸ to see subfolders. Tap a chip to remove a folder. Your ticks, including subfolders, are remembered on this device.</p>
+      </div>
+    </details>
   </div>
 </details>
 
 <details class="card step" id="c2" open>
   <summary><span class="n">2</span><span class="st"><b>Term pairs</b><small>Write wrong => correct, one per line</small></span></summary>
   <div class="bd">
+    <p class="hint">Format: <b>wrong =&gt; correct</b>. Leave the correct part empty to delete that word. Several wrong spellings of one term can share a line, separated by " | " (example: tar bhai | tar bhaiya => his brother).</p>
     <div class="row" id="qa">
       <input type="text" id="qaF" placeholder="Wrong term" autocomplete="off" autocapitalize="off" enterkeyhint="next">
-      <input type="text" id="qaR" placeholder="Correct term (empty = delete)" autocomplete="off" autocapitalize="off" enterkeyhint="done">
+      <input type="text" id="qaR" placeholder="Correct (empty = delete)" autocomplete="off" autocapitalize="off" enterkeyhint="done">
       <button class="sm pri" onclick="quickAdd()">Add pair</button>
     </div>
     <textarea id="pairs" placeholder="One pair per line:&#10;wrong term => correct term&#10;another wrong => another correct&#10;# lines starting with # are ignored"></textarea>
@@ -370,25 +339,18 @@ button.gdq{display:flex;align-items:center;gap:10px;text-align:left;font-weight:
     <details class="box" id="ptBox">
       <summary>Pair tools</summary>
       <div class="bd">
-        <div class="row">
+        <div class="g2">
           <button class="sm" onclick="pairCheck()">Check pairs</button>
           <button class="sm" onclick="pairSort()">Sort A-Z</button>
-        </div>
-        <div class="row">
           <button class="sm" onclick="pairDedupe()">Remove duplicates</button>
           <button class="sm" onclick="pairSwap()">Swap sides (undo)</button>
-        </div>
-        <div class="row">
           <button class="sm" onclick="pairNorm()">Fix separators</button>
           <button class="sm" onclick="undoPrepare()">Prepare undo of last run</button>
-        </div>
-        <div class="row">
           <button class="sm" onclick="pairUncomment()">Uncomment all pairs</button>
         </div>
         <p class="hint">Check pairs warns about very short terms, duplicates, chains (a result that a later pair changes again) and invalid patterns. Swap sides turns every "wrong => correct" into "correct => wrong", which is the easiest way to undo a replacement. Fix separators turns tab, -&gt; and → into =&gt; (handy after pasting from a spreadsheet). Prepare undo of last run writes the reverse pairs of your last replace and limits the next run to the files it changed; then run Preview and untick anything that should stay.</p>
       </div>
     </details>
-    <p class="hint">Format: <b>wrong =&gt; correct</b>. Leave the correct part empty to delete that word. Several wrong spellings of one term can share a line, separated by " | " (example: tar bhai | tar bhaiya => his brother).</p>
     <details class="box" id="gsBox">
       <summary>Glossary (save term lists per novel)</summary>
       <div class="bd">
@@ -405,6 +367,103 @@ button.gdq{display:flex;align-items:center;gap:10px;text-align:left;font-weight:
         </div>
         <input type="file" id="fGloss" accept=".txt,.csv,text/plain" hidden onchange="importGloss(this)">
         <label class="sw"><input type="checkbox" id="autog">Auto-load the glossary named after the ticked novel</label>
+      </div>
+    </details>
+  </div>
+</details>
+
+<details class="card step" id="c3" open>
+  <summary><span class="n">3</span><span class="st"><b>Chapter range and options</b><small>Choose chapters, then Preview</small></span></summary>
+  <div class="bd">
+    <div class="grp">
+      <h4 class="gh">Chapters</h4>
+      <div class="row">
+        <input type="number" id="rfrom" placeholder="From chapter" inputmode="numeric" min="0">
+        <input type="number" id="rto" placeholder="To chapter" inputmode="numeric" min="0">
+      </div>
+      <input type="text" id="nfilter" placeholder="File name filter (optional, e.g. Arc 2)" autocomplete="off">
+      <p class="hint">The range uses the chapter number in the file name (Chapter 12, Ch 12, or the first number). Files without a number are skipped. Leave both empty for all chapters.</p>
+      <label class="fl">Files to include
+      <select id="scope">
+        <option value="all">All files in the ticked folders</option>
+        <option value="last">Only files changed in the last run</option>
+        <option value="failed">Only files that failed or were not reached last time</option>
+      </select>
+      <small id="scopeHint"></small>
+    </label>
+    </div>
+    <div class="grp">
+      <h4 class="gh">Matching</h4>
+      <label class="fl">Matching mode
+      <select id="mode">
+        <option value="lit">Contains (plain text)</option>
+        <option value="word">Whole word only</option>
+        <option value="re">Regular expression</option>
+      </select>
+    </label>
+      <p class="hint" id="modeHint"></p>
+      <div class="swg">
+        <label class="sw"><input type="checkbox" id="c" checked><span>Match case<small>Uppercase and lowercase must match</small></span></label>
+        <label class="sw"><input type="checkbox" id="flex"><span>Flexible spaces<small>A space in the term matches any run of spaces</small></span></label>
+        <label class="sw"><input type="checkbox" id="smart"><span>Smart matching<small>Spaces, hyphens, apostrophes, fullwidth forms, diacritics and long vowels count as the same</small></span></label>
+        <div class="smbox" id="smBox" hidden>
+      <label class="sw"><input type="checkbox" id="smSp" checked>Spaces, hyphens, apostrophes (Xiao Yan = XiaoYan = Xiao-Yan)</label>
+      <label class="sw"><input type="checkbox" id="smW" checked>Fullwidth/halfwidth, ё/е (ru), zero-width characters</label>
+      <label class="sw"><input type="checkbox" id="smDia" checked>Diacritics (o also matches ō, é matches e)</label>
+      <label class="sw"><input type="checkbox" id="smRom" checked>Long vowels (ō also matches ou, oo, ô, o)</label>
+      <p class="hint">Case follows "Match case". Not used in regular expression mode. Undo is not offered for Smart runs.</p>
+    </div>
+        <label class="sw"><input type="checkbox" id="keepcase"><span>Keep capitalization<small>A capitalized match gets a capitalized replacement, ALL CAPS stays ALL CAPS; works best with Match case off</small></span></label>
+      </div>
+    </div>
+    <div class="grp">
+      <h4 class="gh">Run</h4>
+      <div class="swg">
+        <label class="sw"><input type="checkbox" id="fo"><span>Find only<small>List matches, never change anything</small></span></label>
+      </div>
+      <label class="fl">Scan speed
+      <select id="speed">
+        <option value="400">Safe (about 2 docs per second)</option>
+        <option value="250">Fast (about 3 docs per second)</option>
+      </select>
+      <small>Fast is quicker on 100+ chapters. If Google's limit is hit, the scan pauses 30 seconds and continues by itself.</small>
+    </label>
+      <button onclick="countDocs()">Count docs and estimate time</button>
+    </div>
+    <details class="box" id="auBox" data-adv>
+      <summary>Glossary audit (count every term, nothing is changed)</summary>
+      <div class="bd">
+        <p class="hint">Counts how often each pair of Step 2 occurs in the files chosen above (same folders, range, filter and matching options as Preview). Tap a term to list its matches in Find only. Stop keeps the partial result.</p>
+        <button class="pri" id="auRun" onclick="glossaryAudit()">Run audit</button>
+        <p class="hint" id="auInfo" role="status"></p>
+        <select id="auSort" aria-label="Sort terms"><option value="pair">Sort: pair order</option><option value="most">Sort: most matches first</option><option value="zero">Sort: not found first</option></select>
+        <div class="exl" id="auList"></div>
+        <div class="exl" id="auNov" hidden></div>
+        <div class="row">
+          <button class="sm" onclick="auExport('csv')">Download CSV</button>
+          <button class="sm" onclick="auExport('txt')">Download .txt report</button>
+        </div>
+      </div>
+    </details>
+    <details class="box" id="cxBox" data-adv>
+      <summary>Find new terms and spelling variants (nothing is changed)</summary>
+      <div class="bd">
+        <p class="hint">Reads the files chosen above and lists capitalized names and phrases (1-3 words) that are not in your glossary yet. "Spelling variants" groups spellings that look like one name (Xiao Yan / Xiaoyan / Siao Yan); tap the correct one to add the pair. Stop keeps the partial result.</p>
+        <div class="row">
+          <input type="number" id="cxMin" min="1" value="3" inputmode="numeric" placeholder="Minimum count (e.g. 3)" aria-label="Minimum count">
+          <select id="cxView" aria-label="Show"><option value="c">New terms</option><option value="v">Spelling variants</option></select>
+        </div>
+        <button class="pri" id="cxRun" onclick="cxRun()">Find terms</button>
+        <p class="hint" id="cxInfo" role="status"></p>
+        <div class="exl" id="cxList"></div>
+        <details class="box">
+          <summary>Ignore words and Do-not-translate list</summary>
+          <div class="bd">
+            <label class="fl">Ignored words (spaces or commas)<textarea id="cxStop" autocomplete="off"></textarea></label>
+            <button class="sm" onclick="cxStopReset()">Reset ignored words</button>
+            <label class="fl">Do not translate (one term per line; Replace never changes text inside these terms)<textarea id="cxDnt" autocomplete="off"></textarea></label>
+          </div>
+        </details>
       </div>
     </details>
   </div>
@@ -559,111 +618,118 @@ button.gdq{display:flex;align-items:center;gap:10px;text-align:left;font-weight:
   </div>
 </details>
 
-<details class="card step" id="c3" open>
-  <summary><span class="n">3</span><span class="st"><b>Chapter range and options</b><small>Choose chapters, then Preview</small></span></summary>
-  <div class="bd">
-    <div class="row">
-      <input type="number" id="rfrom" placeholder="From chapter (e.g. 10)" inputmode="numeric" min="0">
-      <input type="number" id="rto" placeholder="To chapter (e.g. 50)" inputmode="numeric" min="0">
-    </div>
-    <input type="text" id="nfilter" placeholder="File name filter (optional, e.g. Arc 2)" autocomplete="off">
-    <p class="hint">The range uses the chapter number in the file name (Chapter 12, Ch 12, or the first number). Files without a number are skipped. Leave both empty for all chapters.</p>
-    <label class="fl">Files to include
-      <select id="scope">
-        <option value="all">All files in the ticked folders</option>
-        <option value="last">Only files changed in the last run</option>
-        <option value="failed">Only files that failed or were not reached last time</option>
-      </select>
-      <small id="scopeHint"></small>
-    </label>
-    <label class="fl">Matching mode
-      <select id="mode">
-        <option value="lit">Contains (plain text)</option>
-        <option value="word">Whole word only</option>
-        <option value="re">Regular expression</option>
-      </select>
-    </label>
-    <p class="hint" id="modeHint"></p>
-    <label class="sw"><input type="checkbox" id="flex">Flexible spaces (a space in the term matches any run of spaces)</label>
-    <label class="sw"><input type="checkbox" id="smart">Smart matching (spaces, hyphens, apostrophes, fullwidth forms, diacritics and long vowels count as the same)</label>
-    <div class="smbox" id="smBox" hidden>
-      <label class="sw"><input type="checkbox" id="smSp" checked>Spaces, hyphens, apostrophes (Xiao Yan = XiaoYan = Xiao-Yan)</label>
-      <label class="sw"><input type="checkbox" id="smW" checked>Fullwidth/halfwidth, ё/е (ru), zero-width characters</label>
-      <label class="sw"><input type="checkbox" id="smDia" checked>Diacritics (o also matches ō, é matches e)</label>
-      <label class="sw"><input type="checkbox" id="smRom" checked>Long vowels (ō also matches ou, oo, ô, o)</label>
-      <p class="hint">Case follows "Match case". Not used in regular expression mode. Undo is not offered for Smart runs.</p>
-    </div>
-    <label class="sw"><input type="checkbox" id="keepcase">Keep capitalization (a capitalized match gets a capitalized replacement, ALL CAPS stays ALL CAPS; works best with Match case off)</label>
-    <label class="sw"><input type="checkbox" id="fo">Find only (list matches, never change anything)</label>
-    <label class="sw"><input type="checkbox" id="c" checked>Match case (uppercase/lowercase must match)</label>
-    <label class="fl">Scan speed
-      <select id="speed">
-        <option value="400">Safe (about 2 docs per second)</option>
-        <option value="250">Fast (about 3 docs per second)</option>
-      </select>
-      <small>Fast is quicker on 100+ chapters. If Google's limit is hit, the scan pauses 30 seconds and continues by itself.</small>
-    </label>
-    <button onclick="countDocs()">Count docs and estimate time</button>
-    <details class="box" id="auBox" data-adv>
-      <summary>Glossary audit (count every term, nothing is changed)</summary>
-      <div class="bd">
-        <p class="hint">Counts how often each pair of Step 2 occurs in the files chosen above (same folders, range, filter and matching options as Preview). Tap a term to list its matches in Find only. Stop keeps the partial result.</p>
-        <button class="pri" id="auRun" onclick="glossaryAudit()">Run audit</button>
-        <p class="hint" id="auInfo" role="status"></p>
-        <select id="auSort" aria-label="Sort terms"><option value="pair">Sort: pair order</option><option value="most">Sort: most matches first</option><option value="zero">Sort: not found first</option></select>
-        <div class="exl" id="auList"></div>
-        <div class="exl" id="auNov" hidden></div>
-        <div class="row">
-          <button class="sm" onclick="auExport('csv')">Download CSV</button>
-          <button class="sm" onclick="auExport('txt')">Download .txt report</button>
-        </div>
-      </div>
-    </details>
-    <details class="box" id="cxBox" data-adv>
-      <summary>Find new terms and spelling variants (nothing is changed)</summary>
-      <div class="bd">
-        <p class="hint">Reads the files chosen above and lists capitalized names and phrases (1-3 words) that are not in your glossary yet. "Spelling variants" groups spellings that look like one name (Xiao Yan / Xiaoyan / Siao Yan); tap the correct one to add the pair. Stop keeps the partial result.</p>
-        <div class="row">
-          <input type="number" id="cxMin" min="1" value="3" inputmode="numeric" placeholder="Minimum count (e.g. 3)" aria-label="Minimum count">
-          <select id="cxView" aria-label="Show"><option value="c">New terms</option><option value="v">Spelling variants</option></select>
-        </div>
-        <button class="pri" id="cxRun" onclick="cxRun()">Find terms</button>
-        <p class="hint" id="cxInfo" role="status"></p>
-        <div class="exl" id="cxList"></div>
-        <details class="box">
-          <summary>Ignore words and Do-not-translate list</summary>
-          <div class="bd">
-            <label class="fl">Ignored words (spaces or commas)<textarea id="cxStop" autocomplete="off"></textarea></label>
-            <button class="sm" onclick="cxStopReset()">Reset ignored words</button>
-            <label class="fl">Do not translate (one term per line; Replace never changes text inside these terms)<textarea id="cxDnt" autocomplete="off"></textarea></label>
-          </div>
-        </details>
-      </div>
-    </details>
-  </div>
-</details>
-
 <details class="card" id="hist">
   <summary id="hSum">History of runs</summary>
   <div class="bd">
     <p class="hint">Every finished replace is saved on this device with the chapters and the matches that were changed. Open a run to see it again, save its report, prepare an undo, or delete it. History is only included in the backup file if you tick that option in Backup and restore.</p>
-    <label class="sw"><input type="checkbox" id="histOn" checked>Save history of replace runs</label>
-    <label class="fl">How many runs to keep
-      <select id="hkeep"><option value="10">Last 10 runs</option><option value="20">Last 20 runs</option><option value="50">Last 50 runs</option></select>
-    </label>
-    <input type="text" id="hq" placeholder="Search history (pair text, chapter name, date)..." autocomplete="off">
-    <select id="hdate" aria-label="Date filter">
-      <option value="0">Any date</option>
-      <option value="1">Today</option>
-      <option value="7">Last 7 days</option>
-      <option value="30">Last 30 days</option>
-    </select>
+    <div class="row">
+      <label class="sw"><input type="checkbox" id="histOn" checked>Save history of replace runs</label>
+      <label class="fl">How many runs to keep
+        <select id="hkeep"><option value="10">Last 10 runs</option><option value="20">Last 20 runs</option><option value="50">Last 50 runs</option></select>
+      </label>
+    </div>
+    <div class="row">
+      <input type="text" id="hq" placeholder="Search history (pair text, chapter name, date)..." autocomplete="off">
+      <select id="hdate" aria-label="Date filter">
+        <option value="0">Any date</option>
+        <option value="1">Today</option>
+        <option value="7">Last 7 days</option>
+        <option value="30">Last 30 days</option>
+      </select>
+    </div>
     <div id="hinfo" class="hint"></div>
     <div id="hlist"></div>
     <button onclick="$('fRep').click()">Prepare undo from a saved report (.txt)</button>
     <input type="file" id="fRep" accept=".txt,text/plain" hidden onchange="undoFromReport(this)">
     <p class="hint">Works with reports saved by "Save report" or from a history run, for finished replaces only.</p>
     <button class="stop" onclick="clearHist()">Clear all history</button>
+  </div>
+</details>
+
+<details class="card" id="gdCard">
+  <summary><span class="st"><b>Guide: how to use</b><small>Every feature with steps and examples</small></span><span class="ver" id="gdBadge" title="Topics marked as read">0/0</span></summary>
+  <div class="bd">
+    <p class="hint">New here? Follow the 5 quick steps. Then open any topic: what it does, steps, a before/after example and a tip. "Go there" jumps to the real button.</p>
+    <div class="gdqs" id="gdQs"></div>
+    <input type="text" id="gdQ" placeholder="Search the guide (e.g. undo, dialogue, backup)" autocomplete="off" aria-label="Search the guide">
+    <div class="row gdf">
+      <button class="chip on" id="gdLv_all" onclick="gdSetLv('all')" aria-pressed="true"><span>All</span></button>
+      <button class="chip" id="gdLv_b" onclick="gdSetLv('b')" aria-pressed="false"><span>Basic</span></button>
+      <button class="chip" id="gdLv_a" onclick="gdSetLv('a')" aria-pressed="false"><span>Advanced</span></button>
+    </div>
+    <div class="row">
+      <button class="sm" onclick="gdAll(true)">Expand all</button>
+      <button class="sm" onclick="gdAll(false)">Collapse all</button>
+      <button class="sm" onclick="gdReset()">Clear read marks</button>
+    </div>
+    <p class="hint" id="gdInfo" role="status"></p>
+    <div id="gdList"></div>
+    <p class="hint" id="gdEmpty" hidden>No topic matches. Try a shorter word.</p>
+  </div>
+</details>
+
+<details class="card" id="cSet">
+  <summary><span class="st"><b>Settings and account</b><small>Google sign-in, profiles, theme</small></span></summary>
+  <div class="bd">
+    <label class="fl">Google OAuth Client ID
+      <small>Paste your Client ID in this box. Find it in Google Cloud Console: APIs and Services, then Credentials, then your OAuth 2.0 Web client. It looks like 1234567890-abcdef.apps.googleusercontent.com. It is only used to sign in and is not a password.</small>
+      <input type="text" id="cid" placeholder="1234567890-abcdef.apps.googleusercontent.com" autocomplete="off">
+    </label>
+    <label class="fl">My Work folder ID
+      <small>Paste the ID of the Drive folder that holds all your novel folders. Open that folder in Google Drive and copy the part of the address after /folders/ (drive.google.com/drive/folders/THIS_PART). Pasting the whole folder link also works. Do not paste a single Doc here.</small>
+      <input type="text" id="root" placeholder="1Y7cF60rpEzIgwH-vxDZ... or the folder link" autocomplete="off">
+    </label>
+    <button class="pri" onclick="saveSettings()">Save settings</button>
+    <p class="hint">Saved in this browser. Leave empty and save to use the default ID built into the code.</p>
+    <details class="box">
+      <summary>Profiles (switch Client ID and folder ID in one click)</summary>
+      <div class="bd">
+        <select id="prof" onchange="applyProf()"><option value="">-- saved profiles --</option></select>
+        <input type="text" id="pname" placeholder="Profile name (e.g. Main account)" autocomplete="off">
+        <div class="row">
+          <button class="sm" onclick="saveProf()">Save current IDs as profile</button>
+          <button class="sm" onclick="delProf()">Delete selected profile</button>
+        </div>
+        <p class="hint">Picking a profile switches to its Client ID and My Work folder ID at once; then reload the novel list. Profiles are included in the backup.</p>
+      </div>
+    </details>
+    <details class="box" id="hoBox" data-adv>
+      <summary>Honorific rules (keep, translate or drop)</summary>
+      <div class="bd">
+        <label class="fl">Language
+          <select id="hoLang"><option value="ja">Japanese</option><option value="ko">Korean</option><option value="zh">Chinese</option><option value="ru">Russian</option></select>
+        </label>
+        <div class="exl" id="hoList"></div>
+        <div class="row">
+          <button class="sm" onclick="hoAdd()">Add honorific</button>
+          <button class="sm" onclick="hoReset()">Reset this language</button>
+        </div>
+        <p class="hint">Applies only to entries with "Has honorific" ticked in Glossary entries. Keep = the name changes, the honorific stays. Drop = name and honorific become the correct term. Translate = the honorific is replaced by your text. Type honorifics without the hyphen (san, not -san). Matching uses lowercase as typed; use Whole word mode.</p>
+      </div>
+    </details>
+    <div class="row">
+      <button onclick="switchAccount()">Sign in with another Google account</button>
+      <button onclick="logout()">Logout</button>
+    </div>
+    <p class="hint" id="authInfo"></p>
+    <label class="fl">Text size of match lines
+      <select id="tsize"><option value="n">Normal</option><option value="l">Large</option><option value="xl">Extra large</option></select>
+    </label>
+    <p class="hint">Shortcuts on a computer: Ctrl+Enter = Preview, Esc = Stop.</p>
+  </div>
+</details>
+
+<details class="card" id="cBk">
+  <summary id="bkSum">Backup and restore</summary>
+  <div class="bd">
+    <p class="hint">A backup file holds your settings, glossaries, current pairs and options. It never contains your login token, so it is safe to keep.</p>
+    <label class="sw"><input type="checkbox" id="bkHist">Include run history in the backup file</label>
+    <div class="row">
+      <button class="pri" onclick="exportBackup()">Export backup (.json)</button>
+      <button onclick="$('fBackup').click()">Import backup</button>
+    </div>
+    <input type="file" id="fBackup" accept=".json,application/json" hidden onchange="importBackup(this)">
+    <p class="hint" id="bkInfo"></p>
   </div>
 </details>
 

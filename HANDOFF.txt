@@ -1,4 +1,4 @@
-BULK REPLACE - MASTER HANDOFF  |  current: v5.17 (S1-S18 done, plan complete)  |  plan: v5.0 -> v5.17
+BULK REPLACE - MASTER HANDOFF  |  current: v5.20 (S1-S21 done)  |  plan: v5.0 -> v5.17
 ==========================================================================
 This file is self-contained. HANDOFF.md = frozen legacy feature reference for v4.x (read only if a step says so).
 Mark steps [x] here when done and add a CHANGELOG line (see section 6).
@@ -109,6 +109,30 @@ Mark steps [x] here when done and add a CHANGELOG line (see section 6).
 - Coverage: #cvBox: #cvSrc (audit|preview), #cvView (all|unused|used), cvBuild(), cvRender(), cvExport() (CSV). Source = auLast (audit; T[k].ch = {chapterNo or '?': count} added to glossaryAudit) or lastScan (Preview/find-only; per chapter from results[].counts + chNo). Entry -> pairs: entriesToPairs([entry]) lines, left side compared to the source pair find text (exact), so honorific expansions count. Status per entry: used | unused | not checked (its pair is not in the audited pairs) | no pair (no wrong form). Info line also counts audited pairs that do not come from entries. Partial source (Stop) is flagged. Var cvLast.
 - Not done: log has no per-user undo/redo; coverage does not scan, it only reads the last audit/preview; pairs edited by hand in #pairs are compared by exact find text.
 - PLAN COMPLETE (S1-S18). Remaining ideas are in section 8 (parked) and the "Not done" lines above.
+
+3o. ADDED IN v5.18 (S19, UI only, no logic change)
+- Quick nav: <nav class="qnav" id="qnav"> (sticky top, horizontal scroll, pill buttons) -> goCard(id) opens that card and scrolls to it. Card ids added: cSet (Settings), cBk (Backup), c1/c2/c3 (Steps 1-3, class "card step" = accent left border). Existing ids geCard, rlCard, hist reused as targets.
+- Simple / All tools: store 'ui' ('simple' default | 'all'); uiApply()/uiToggle(); button #uiMode (first chip in the nav); body.simple hides every [data-adv] element: #geCard, #rlCard, #auBox, #cxBox, #hoBox and the Entries / Raw line nav chips. #uiHint explains this in simple view. Hidden tools keep working (autoGloss etc.). Not in backup.
+- Step summaries are now <span class="st"><b>title</b><small>one-line help</small></span>; step number badge .n is solid accent. CSS: .qnav, .st, .card.step, details.box summary arrow, first hint of a card = soft note box. To add a new advanced tool: put data-adv on its card/box (and on its nav chip).
+- Not done: 'ui' not in backup; History card chip jumps to #hist (header History button unchanged).
+
+3p. ADDED IN v5.19 (S20, UI only, no logic change) - Guide card
+- <details class="card" id="gdCard"> is the FIRST card in the left column (collapsed). Opened by header button #gdBtn ("Guide") and nav chip #gdNavBtn (has a "New" badge #gdNew until first open) via goGuide(). Summary badge #gdBadge = read topics / total.
+- Content comes from a JS data list GD (end of script block): {id, lv 'b'|'a', t title, go element id, w what, s steps[], x {l label, b before, a after, c copy text, n note}, tip, k search words}. 34 topics (17 Basic, 17 Advanced). To add a topic: append one object to GD. Keep text in sync when a button label changes. GD_QS = the 5 quick-start tiles (#gdQs).
+- UI: #gdQ search (all words must match title/what/steps/tip/k), level chips #gdLv_all / #gdLv_b / #gdLv_a (gdSetLv), Expand all / Collapse all (gdAll), Clear read marks (gdReset), #gdInfo count, #gdEmpty, #gdList of <details class="gdt" id="gd_<id>">. Each topic: What, Steps, Example (Before red / After green, uses --dl/--dlf and --in/--inf), Tip, buttons "Go there" (gdGo), "Copy example" (only when x.c; uses copyText), "Mark as read".
+- gdGo(id): if target is inside [data-adv] and the view is Simple it switches to All tools (store 'ui'), opens every ancestor <details>, scrolls, flashes (.gdflash outline 2.2 s). Hidden targets show "Run Preview first..." and jump to #bPrev.
+- Store keys: 'gdone' (JSON array of read topic ids), 'gdseen' ('1' after first open). NOT in backup.
+- Ids added to existing boxes: #ptBox (Pair tools), #gsBox (Glossary). CSS: .card,.box{scroll-margin-top:64px} (nav no longer covers jump targets), .gd* classes before the min-width:980px block. No new CSS variables.
+- Not done: no deep link per topic (#gd_xxx works only after render), 'gdone' not in backup, guide text is English only, examples are copy-only (no "add to pairs box" button on purpose, to keep user data safe).
+
+3q. ADDED IN v5.20 (S21, UI only, no logic change) - compact layout
+- JS block is byte-identical to v5.19. Every id and every inline handler is kept; only new id: #exBox.
+- Left column order is now: Step 1, Step 2, Step 3, Glossary entries (adv), Raw line helper (adv), History, Guide, Settings, Backup (nav chips still jump to all of them).
+- Step 1: Load + Count docs in one row, Folders all/none/invert as one segmented bar (.seg), "Extra folders and subfolder options" box #exBox now holds #rec (Include subfolders), #extra and the long help text.
+- Step 2: format hint above the box, Pair tools buttons in a grid (.g2).
+- Step 3: three groups (.grp + h4.gh): Chapters / Matching / Run. Switches sit in .swg with a title and a muted one-line help (label.sw > input + span > text + small). Label titles are unchanged (Guide text stays in sync), only Match case moved to the top of its group.
+- Header buttons are .sm; on <=480px the subtitle and the header Guide button are hidden (Guide chip stays in the nav). Cards, .bd, nav chips, dock, toolbar rows (#tb/#rv .row = auto-fit grid) are tighter. CSS block "v5.20 (S21)" sits before the min-width:980px media block; no new CSS variables.
+- Not done: no per-step status badge (needs JS), Settings card content unchanged.
 
 3. KEY DATA SHAPES (v4.8, keep working)
 - Pairs text in textarea #pairs: lines `wrong => correct`; `#` = comment; variants on left: `a | b => c` (space-pipe-space, longest wins); no `=>` allowed only in Find-only (#fo).
@@ -246,10 +270,13 @@ PHASE G - Reports and maintenance
 - Real Drive/Docs never tested in older versions beyond mocks; first real run: Preview on one small novel, tick 1-2 matches, check the Doc.
 - Playwright with mocked Google APIs was used in v4.x (suites not in this zip). For new steps, at minimum: node --check on extracted <script>, node unit tests for pure functions (smartPattern, entriesToPairs, transliterators), one mocked-DOM smoke test if Playwright is available.
 
-10. NEXT-CHAT KICKOFF LINE (copy exactly, change the step id each time)
+10. NEXT-CHAT KICKOFF LINE (copy exactly, change the step id each time). Step plan S1-S20 finished. This file is delivered as HANDOFF.txt (the old HANDOFF+BulkReplace+v5.19.txt in the repo can be deleted)
 "Read HANDOFF.txt (uploaded). Do ONLY the step the user names (the S1-S18 plan is finished; check section 8 and the "Not done" notes). Patch index.html only, output changed files only, one step per chat, stop at 85% session (hard stop 90%), tick [x] and add CHANGELOG."
 
 11. CHANGELOG
+v5.20 (S21) 2026-11-18: compact, easier layout (UI only): steps first, grouped Step 3 options with short help, tighter cards/nav/dock, Extra folders box, segmented folder buttons. Tests: ids and handlers identical to v5.19, script block identical, no duplicate ids, Playwright 390+1360 light+dark (nav jump, Add pair, Smart matching toggle, regex mode, Simple/All switch, no overflow, 0 JS errors). NOT tested: real Drive/Docs, real phone.
+v5.19 (S20) 2026-11-06: Guide card: 34 topics (Basic/Advanced) with What, Steps, before/after Example, Tip; search + level filter, quick-start tiles, Go there (opens card, switches to All tools if needed, highlights target), Copy example, read marks + progress; header Guide button and nav chip. Tests: node --check, no duplicate ids, Playwright 360+1280 light+dark (search, filter, copy, mark read, go-there for 9 targets incl. nested boxes, no overflow, 0 JS errors, every go target exists). NOT tested: real Drive/Docs, real phone, clipboard on old browsers (shows "Copy failed"); read marks persistence flaked once in 1 of 12 headless runs (file:// storage), not reproduced in 3 reruns.
+v5.18 (S19) 2026-11-06: easier layout: sticky quick-nav chips (jump + open), Simple / All tools switch (default Simple, hides entries, raw helper, audit, term finder, honorifics), step cards with one-line help and number badges, tidier boxes and hints. Tests: node --check, no duplicate ids, Playwright 360+1280 light+dark (hidden/shown cards, nav jump opens card, setting persists after reload, no overflow, 0 JS errors). NOT tested: real Drive/Docs, very old browsers (uses sticky + flex only).
 v5.17 (S18) 2026-11-06: glossary change log (store glog, max 200, backup, export .txt, import diff via log lines, written from glexSet) + coverage report (used/unused entries with chapters from last audit or preview, CSV); audit now records counts per chapter. Tests: node --check, no duplicate ids, Playwright mocked Docs 360+1280 light+dark (add/edit/delete lines, 60-line cap per call, trim, coverage used/unused/no pair, chapters 3-6, preview source, empty-source message, no overflow, 0 JS errors). NOT tested: real Docs, backup file round trip of glog in the UI.
 v5.16 (S17) 2026-11-06: "Raw" button on review/preview lines shows the raw paragraph of the same chapter (rawmap + chNo, paragraph index ratio +/-1, cached per session) with gloss and romanized line. Tests: Playwright mocked Docs 360+1280 light+dark (button only with linked raw folder, alignment 4 of 10, toggle, 1 raw read), node --check. NOT tested: real Drive/Docs.
 v5.15 (S16) 2026-11-06: rule romanization: kana -> Hepburn (macrons option), Hangul -> Revised Romanization, Cyrillic -> BGN-like, optional pinyin dictionary import (store pydict, backup), honorific rules applied to names with the flag. Tests: node unit table (28 kana/hangul/cyrillic/pinyin cases), Playwright 360+1280 light+dark, 0 JS errors.
